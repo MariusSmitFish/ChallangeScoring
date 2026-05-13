@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage'
 import RulesPage from './pages/RulesPage'
 import SchedulePage from './pages/SchedulePage'
 import ScoreEntryPage from './pages/ScoreEntryPage'
+import DataResetPage from './pages/DataResetPage'
 import SpeciesPage from './pages/SpeciesPage'
 import TeamsPage from './pages/TeamsPage'
 import './App.css'
@@ -48,7 +49,10 @@ function AppInner({
     if (authLoading) return
     if (
       !canMutate &&
-      (view === 'teams' || view === 'score' || view === 'species')
+      (view === 'teams' ||
+        view === 'score' ||
+        view === 'species' ||
+        view === 'data-reset')
     ) {
       setView('rules')
     }
@@ -78,7 +82,14 @@ function AppInner({
       <header className="app-topbar">
         <div className="app-topbar-inner">
           <div className="app-brand">
-            <div className="app-brand-mark" aria-hidden />
+            <img
+              className="app-brand-logo"
+              src="/file.jpg"
+              alt={`${COMPETITION_NAME} logo`}
+              width={40}
+              height={40}
+              decoding="async"
+            />
             <div className="app-brand-text">
               <span className="app-brand-title">{COMPETITION_NAME}</span>
               <span className="app-brand-meta">
@@ -170,6 +181,15 @@ function AppInner({
                 canMutate={canMutate}
                 signedInNonAdmin={signedInNonAdmin}
                 catches={catches}
+              />
+            ) : null}
+            {view === 'data-reset' ? (
+              <DataResetPage
+                teams={teams}
+                catches={catches}
+                overrides={overrides}
+                canMutate={canMutate}
+                signedInNonAdmin={signedInNonAdmin}
               />
             ) : null}
             {view === 'score' ? (

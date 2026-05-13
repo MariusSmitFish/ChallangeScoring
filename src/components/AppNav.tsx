@@ -5,6 +5,7 @@ export type AppView =
   | 'species'
   | 'score'
   | 'boards'
+  | 'data-reset'
   | 'login'
 
 type NavProps = {
@@ -19,6 +20,7 @@ const LINKS: { id: AppView; label: string; committeeOnly?: true }[] = [
   { id: 'schedule', label: 'Schedule' },
   { id: 'teams', label: 'Teams', committeeOnly: true },
   { id: 'species', label: 'Species', committeeOnly: true },
+  { id: 'data-reset', label: 'Data reset', committeeOnly: true },
   { id: 'score', label: 'Score entry', committeeOnly: true },
   { id: 'boards', label: 'Leaderboards' },
 ]

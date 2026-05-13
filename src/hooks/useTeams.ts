@@ -10,6 +10,7 @@ export type UseTeamsResult = {
   error: string | null
   clearError: () => void
   misconfigured: boolean
+  refresh: () => Promise<void>
   addTeam: (name: string) => void
   renameTeam: (teamId: string, name: string) => void
   removeTeam: (teamId: string) => void
@@ -42,6 +43,11 @@ export function useTeams(canMutate: boolean): UseTeamsResult {
     setError(null)
     setTeams(next)
   }, [])
+
+  const refresh = useCallback(async () => {
+    if (!supabase) return
+    await refreshCloud(supabase)
+  }, [supabase, refreshCloud])
 
   useEffect(() => {
     if (!supabase) {
@@ -198,6 +204,7 @@ export function useTeams(canMutate: boolean): UseTeamsResult {
     error,
     clearError,
     misconfigured,
+    refresh,
     addTeam,
     renameTeam,
     removeTeam,
