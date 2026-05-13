@@ -1126,3 +1126,126 @@ textarea.input,
 .data-reset-card-body code {
   font-size: 0.8125rem;
 }
+
+/* ——— Leaderboards: big fish ——— */
+
+.boards-bigfish {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  margin-top: 0.5rem;
+}
+
+.boards-bigfish-title {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.boards-bigfish-block {
+  margin: 0;
+}
+
+/* ——— Committee updates (blog) ——— */
+
+.updates-panel .updates-intro {
+  margin: 0 0 1.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.updates-admin {
+  margin-bottom: 1.75rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--border, #2a3344);
+  background: var(--surface-2, rgba(0, 0, 0, 0.15));
+}
+
+.updates-admin-title {
+  margin: 0 0 0.85rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.updates-form .field {
+  margin-bottom: 0.85rem;
+}
+
+.updates-body-input {
+  min-height: 10rem;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.45;
+}
+
+.updates-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.updates-msg {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+}
+
+.updates-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.update-card {
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--border, #2a3344);
+  background: var(--surface, #151922);
+}
+
+.update-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.update-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.update-card-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.update-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.update-body {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--text, #e6e9ef);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

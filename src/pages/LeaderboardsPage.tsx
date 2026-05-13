@@ -9,6 +9,8 @@ import {
   leaderboardAnglerOverall,
   leaderboardTeamByDay,
   leaderboardTeamOverall,
+  weighedFishBestPerSpecies,
+  weighedFishOverallByWeight,
 } from '../domain/aggregates'
 import type {
   AnglerDayPointsExplain,
@@ -19,6 +21,11 @@ import type { UseCompetitionDaysResult } from '../hooks/useCompetitionDays'
 import type { UseTeamDayOverridesResult } from '../hooks/useTeamDayOverrides'
 import type { UseTeamsResult } from '../hooks/useTeams'
 import { formatPointsFixed2 } from '../lib/formatPoints'
+
+function formatKg(kg: number): string {
+  const r = Math.round(kg * 1000) / 1000
+  return `${r.toFixed(2)} kg`
+}
 
 function BoardExpandRow({
   colSpan,
@@ -284,7 +291,12 @@ function AnglerOverallExplainView({
   )
 }
 
-type Tab = 'team-overall' | 'angler-overall' | 'team-day' | 'angler-day'
+type Tab =
+  | 'team-overall'
+  | 'angler-overall'
+  | 'team-day'
+  | 'angler-day'
+  | 'big-fish'
 
 type Props = {
   teams: UseTeamsResult
@@ -367,6 +379,28 @@ export default function LeaderboardsPage({
     )
   }, [teams.teams, catches.catches, overrides.overrides, selectedDay, species.entries])
 
+  const bigFishOverall = useMemo(
+    () =>
+      weighedFishOverallByWeight(
+        teams.teams,
+        catches.catches,
+        days.days,
+        species.entries,
+      ),
+    [teams.teams, catches.catches, days.days, species.entries],
+  )
+
+  const bigFishPerSpecies = useMemo(
+    () =>
+      weighedFishBestPerSpecies(
+        teams.teams,
+        catches.catches,
+        days.days,
+        species.entries,
+      ),
+    [teams.teams, catches.catches, days.days, species.entries],
+  )
+
   const siteDown = teams.misconfigured || teams.loading
 
   function rowExpandKey(entityId: string) {
@@ -417,11 +451,22 @@ export default function LeaderboardsPage({
       </div>
 
       <p className="empty-hint boards-hint">
-        Team totals include per-day species diversity bonus from the whole
-        boat’s catches that day (+2 per extra scoring species). Angler totals use
-        each angler’s own catches only for that same bonus. Disqualified days
-        force zero for that team day. Use <strong>▸</strong> on a row to see how
-        points were built.
+        {tab === 'big-fish' ? (
+          <>
+            Weighed gamefish only, ordered by scale weight (kg). Every logged
+            weighed entry with a weight is listed, including fish that scored zero
+            points. <strong>Heaviest per species</strong> is one row per species
+            key (the single heaviest fish recorded for that species).
+          </>
+        ) : (
+          <>
+            Team totals include per-day species diversity bonus from the whole
+            boat’s catches that day (+2 per extra scoring species). Angler totals
+            use each angler’s own catches only for that same bonus. Disqualified
+            days force zero for that team day. Use <strong>▸</strong> on a row to
+            see how points were built.
+          </>
+        )}
       </p>
 
       {days.days.length === 0 && !teams.misconfigured ? (
@@ -437,6 +482,7 @@ export default function LeaderboardsPage({
             ['angler-overall', 'Anglers overall'],
             ['team-day', 'Teams by day'],
             ['angler-day', 'Anglers by day'],
+            ['big-fish', 'Biggest fish'],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -737,6 +783,88 @@ export default function LeaderboardsPage({
               })}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {tab === 'big-fish' ? (
+        <div className="boards-bigfish">
+          <section className="boards-bigfish-block" aria-labelledby="bigfish-overall-heading">
+            <h3 id="bigfish-overall-heading" className="boards-bigfish-title">
+              Heaviest weighed fish (overall)
+            </h3>
+            {bigFishOverall.length === 0 ? (
+              <p className="empty-hint">No weighed fish with a recorded weight yet.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th className="num">Weight</th>
+                      <th>Species</th>
+                      <th>Angler</th>
+                      <th>Team</th>
+                      <th>Day</th>
+                      <th className="num">Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bigFishOverall.map((r, i) => (
+                      <tr key={r.catchId}>
+                        <td>{i + 1}</td>
+                        <td className="num">{formatKg(r.weightKg)}</td>
+                        <td>{r.speciesLabel}</td>
+                        <td>{r.anglerName}</td>
+                        <td>{r.teamName}</td>
+                        <td>
+                          Day {r.dayNumber} — {r.dayDate}
+                        </td>
+                        <td className="num">{formatPointsFixed2(r.pointsTotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="boards-bigfish-block" aria-labelledby="bigfish-species-heading">
+            <h3 id="bigfish-species-heading" className="boards-bigfish-title">
+              Heaviest per species
+            </h3>
+            {bigFishPerSpecies.length === 0 ? (
+              <p className="empty-hint">No weighed fish with a recorded weight yet.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Species</th>
+                      <th className="num">Weight</th>
+                      <th>Angler</th>
+                      <th>Team</th>
+                      <th>Day</th>
+                      <th className="num">Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bigFishPerSpecies.map((r) => (
+                      <tr key={r.speciesKey}>
+                        <td>{r.speciesLabel}</td>
+                        <td className="num">{formatKg(r.weightKg)}</td>
+                        <td>{r.anglerName}</td>
+                        <td>{r.teamName}</td>
+                        <td>
+                          Day {r.dayNumber} — {r.dayDate}
+                        </td>
+                        <td className="num">{formatPointsFixed2(r.pointsTotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       ) : null}
 

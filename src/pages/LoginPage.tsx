@@ -66,11 +66,6 @@ export default function LoginPage({ onSuccess }: Props) {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-      <p className="empty-hint small login-foot">
-        First admin: create the user under Supabase Authentication, then run the
-        SQL in <code className="env-code">supabase-schema-03-admin-auth.sql</code>{' '}
-        to add their UUID to <code className="env-code">app_admins</code>.
-      </p>
     </div>
   )
 }

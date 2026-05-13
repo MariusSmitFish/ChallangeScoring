@@ -515,4 +515,102 @@ export function leaderboardAnglerByDay(
   return rows.sort((a, b) => b.points - a.points)
 }
 
+export type WeighedFishBoardRow = {
+  catchId: string
+  weightKg: number
+  speciesKey: string
+  speciesLabel: string
+  teamId: string
+  teamName: string
+  anglerId: string
+  anglerName: string
+  competitionDayId: string
+  dayNumber: number
+  dayDate: string
+  pointsTotal: number
+}
+
+function isWeighedFishWithWeight(c: CatchRow): boolean {
+  if (c.catchKind !== 'weighed_gamefish') return false
+  if (c.weightKg == null || !Number.isFinite(c.weightKg)) return false
+  return c.weightKg > 0
+}
+
+function buildWeighedFishRows(
+  catches: CatchRow[],
+  teams: Team[],
+  days: CompetitionDay[],
+  speciesRegistry?: SpeciesRegistryEntry[] | null,
+): WeighedFishBoardRow[] {
+  const dayById = new Map(days.map((d) => [d.id, d]))
+  const memberNames = new Map<string, string>()
+  const teamNames = new Map<string, string>()
+  for (const t of teams) {
+    teamNames.set(t.id, t.name)
+    for (const m of t.members) memberNames.set(m.id, m.name)
+  }
+
+  return catches
+    .filter(isWeighedFishWithWeight)
+    .map((c) => {
+      const day = dayById.get(c.competitionDayId)
+      const w = Number(c.weightKg)
+      return {
+        catchId: c.id,
+        weightKg: Math.round(w * 1000) / 1000,
+        speciesKey: c.speciesKey,
+        speciesLabel: speciesDisplayLabel(c.speciesKey, speciesRegistry),
+        teamId: c.teamId,
+        teamName: teamNames.get(c.teamId) ?? '—',
+        anglerId: c.anglerId,
+        anglerName: memberNames.get(c.anglerId) ?? '—',
+        competitionDayId: c.competitionDayId,
+        dayNumber: day?.dayNumber ?? 0,
+        dayDate: day?.dayDate ?? '—',
+        pointsTotal: c.pointsTotal,
+      }
+    })
+}
+
+function compareWeighedFishRank(a: WeighedFishBoardRow, b: WeighedFishBoardRow): number {
+  if (b.weightKg !== a.weightKg) return b.weightKg - a.weightKg
+  return a.catchId.localeCompare(b.catchId)
+}
+
+/** All weighed gamefish with a scale weight, heaviest first (stable tie-break). */
+export function weighedFishOverallByWeight(
+  teams: Team[],
+  catches: CatchRow[],
+  days: CompetitionDay[],
+  speciesRegistry?: SpeciesRegistryEntry[] | null,
+): WeighedFishBoardRow[] {
+  const rows = buildWeighedFishRows(catches, teams, days, speciesRegistry)
+  return [...rows].sort(compareWeighedFishRank)
+}
+
+/** Heaviest weighed fish per species (same weight → lower catch id wins). */
+export function weighedFishBestPerSpecies(
+  teams: Team[],
+  catches: CatchRow[],
+  days: CompetitionDay[],
+  speciesRegistry?: SpeciesRegistryEntry[] | null,
+): WeighedFishBoardRow[] {
+  const rows = buildWeighedFishRows(catches, teams, days, speciesRegistry)
+  const best = new Map<string, WeighedFishBoardRow>()
+  for (const r of rows) {
+    const prev = best.get(r.speciesKey)
+    if (!prev) {
+      best.set(r.speciesKey, r)
+      continue
+    }
+    if (r.weightKg > prev.weightKg) best.set(r.speciesKey, r)
+    else if (r.weightKg === prev.weightKg && r.catchId < prev.catchId) best.set(r.speciesKey, r)
+  }
+  return [...best.values()].sort((a, b) => {
+    const c = compareWeighedFishRank(a, b)
+    if (c !== 0) return c
+    return a.speciesLabel.localeCompare(b.speciesLabel)
+  })
+}
+
 export { speciesCapKey } from './species'

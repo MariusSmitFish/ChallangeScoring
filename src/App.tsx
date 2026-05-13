@@ -4,6 +4,7 @@ import AppNav, { type AppView } from './components/AppNav'
 import { SpeciesRegistryProvider, useSpeciesRegistry } from './context/SpeciesRegistryContext'
 import { COMPETITION_NAME } from './domain/competition'
 import { useCatches } from './hooks/useCatches'
+import { useCommitteeUpdates } from './hooks/useCommitteeUpdates'
 import { useCompetitionDays } from './hooks/useCompetitionDays'
 import { useTeamDayOverrides } from './hooks/useTeamDayOverrides'
 import { useTeams } from './hooks/useTeams'
@@ -15,6 +16,7 @@ import ScoreEntryPage from './pages/ScoreEntryPage'
 import DataResetPage from './pages/DataResetPage'
 import SpeciesPage from './pages/SpeciesPage'
 import TeamsPage from './pages/TeamsPage'
+import UpdatesPage from './pages/UpdatesPage'
 import './App.css'
 
 type AppInnerProps = {
@@ -25,6 +27,7 @@ type AppInnerProps = {
   signedInNonAdmin: boolean
   signOut: () => Promise<void>
   teams: ReturnType<typeof useTeams>
+  committeeUpdates: ReturnType<typeof useCommitteeUpdates>
   enabled: boolean
 }
 
@@ -36,6 +39,7 @@ function AppInner({
   signedInNonAdmin,
   signOut,
   teams,
+  committeeUpdates,
   enabled,
 }: AppInnerProps) {
   const species = useSpeciesRegistry()
@@ -63,7 +67,8 @@ function AppInner({
     days.error ??
     catches.error ??
     overrides.error ??
-    species.error
+    species.error ??
+    committeeUpdates.error
 
   function clearAllErrors() {
     teams.clearError()
@@ -71,6 +76,7 @@ function AppInner({
     catches.clearError()
     overrides.clearError()
     species.clearError()
+    committeeUpdates.clearError()
   }
 
   function handleLoginSuccess(loginIsAdmin: boolean) {
@@ -169,6 +175,13 @@ function AppInner({
             ) : null}
             {view === 'rules' ? <RulesPage /> : null}
             {view === 'schedule' ? <SchedulePage /> : null}
+            {view === 'updates' ? (
+              <UpdatesPage
+                updates={committeeUpdates}
+                canMutate={canMutate}
+                signedInNonAdmin={signedInNonAdmin}
+              />
+            ) : null}
             {view === 'teams' ? (
               <TeamsPage
                 {...teams}
@@ -231,6 +244,7 @@ export default function App() {
 
   const teams = useTeams(canMutate)
   const enabled = !teams.misconfigured
+  const committeeUpdates = useCommitteeUpdates(enabled, canMutate)
 
   return (
     <SpeciesRegistryProvider enabled={enabled}>
@@ -242,6 +256,7 @@ export default function App() {
         signedInNonAdmin={signedInNonAdmin}
         signOut={signOut}
         teams={teams}
+        committeeUpdates={committeeUpdates}
         enabled={enabled}
       />
     </SpeciesRegistryProvider>
