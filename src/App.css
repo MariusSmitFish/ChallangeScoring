@@ -24,16 +24,16 @@
 .app-topbar-inner {
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: 0.5rem 1rem;
+  padding: 0.35rem 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 .app-topbar-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   min-width: 0;
 }
 
@@ -197,7 +197,7 @@
 /* ——— Primary navigation ——— */
 
 .app-nav {
-  padding: 0.5rem 0;
+  padding: 0.35rem 0;
 }
 
 .app-nav-scroll {
@@ -1373,44 +1373,98 @@ textarea.input,
   }
 
   .app-topbar-inner {
-    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-top: max(0.35rem, env(safe-area-inset-top));
+    padding-bottom: 0.3rem;
     padding-left: max(0.75rem, env(safe-area-inset-left));
     padding-right: max(0.75rem, env(safe-area-inset-right));
+    gap: 0.3rem;
+  }
+
+  .app-brand {
+    gap: 0.5rem;
+  }
+
+  .app-brand-logo {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .app-brand-title {
+    font-size: 0.9375rem;
+    line-height: 1.15;
   }
 
   .app-brand-meta {
     display: none;
   }
 
-  .app-chrome-admin .app-brand-title {
-    font-size: 0.9375rem;
+  .app-topbar-auth .btn-small {
+    min-height: 1.875rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .status-pill {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.625rem;
+  }
+
+  .app-chrome-admin .app-topbar-row-tools .app-topbar-conn {
+    display: none;
   }
 
   .app-topbar-row-tools {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .app-topbar-row-tools .app-topbar-conn {
-    align-self: flex-end;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
   }
 
   .comp-switcher {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .comp-switcher-label {
+    flex: 1 1 100%;
+  }
+
+  .comp-switcher-select {
+    min-height: 2rem;
+    padding: 0.25rem 0.45rem;
+    font-size: 0.8125rem;
   }
 
   .comp-switcher .btn {
-    width: 100%;
+    width: auto;
+    min-height: 2rem;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.75rem;
   }
 
   .comp-switcher-pill {
-    align-self: flex-start;
+    flex-shrink: 0;
   }
 
   .topbar-auth-status {
     max-width: 5.5rem;
+    font-size: 0.6875rem;
+  }
+
+  .app-nav {
+    padding: 0.25rem 0;
+  }
+
+  .nav-btn {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+  }
+
+  .mutation-status {
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8125rem;
   }
 
   .panel {
@@ -1482,8 +1536,9 @@ textarea.input,
   .app-chrome-admin .app-topbar-inner {
     flex-direction: column;
     align-items: stretch;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
+    padding-top: 0.4rem;
+    padding-bottom: 0.35rem;
+    gap: 0.3rem;
   }
 
   .app-chrome-admin .app-topbar-row-primary {
