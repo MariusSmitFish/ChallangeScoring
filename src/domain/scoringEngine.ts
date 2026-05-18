@@ -1,4 +1,9 @@
 import {
+  DEFAULT_SCORING_CONFIG,
+  type LengthTier,
+  type ScoringConfig,
+} from './competitionConfig'
+import {
   SPECIES_KEYS,
   buildSpeciesRulesSnapshot,
   speciesCapKey,
@@ -7,68 +12,108 @@ import {
 
 export type CatchKind = 'weighed_gamefish' | 'billfish_release' | 'length_release'
 
-const MIN_WEIGH_KG = 4
-const BONUS_OVER_10_KG = 5
-const SPECIES_DIVERSITY_PER_EXTRA = 2
-const MAX_PER_SPECIES_PER_BOAT_DAY = 6
-
 export type CatchInput = {
   catchKind: CatchKind
   speciesKey: string
   weightKg: number | null
   lengthCm: number | null
-  billfishVariant: 'sailfish' | 'marlin' | null
+  billfishVariant: string | null
 }
 
 export type CatchValidationContext = {
-  /** Existing valid catches same team + same calendar day (any angler), for cap checks. */
   sameTeamDaySpeciesCounts: Map<string, number>
-  /** When set (non-empty), length/weighed species and cap groups follow the registry. */
   speciesRegistry?: SpeciesRegistryEntry[] | null
+  scoringConfig?: ScoringConfig
 }
 
-/** 1 point per kg on the scale, including fractional kg (2 dp). */
+function cfg(ctx: CatchValidationContext): ScoringConfig {
+  return ctx.scoringConfig ?? DEFAULT_SCORING_CONFIG
+}
+
 function pointsFromWeighedKg(kg: number): number {
   return Math.max(0, Math.round(kg * 100) / 100)
 }
 
-function weighedGamefishPoints(weightKg: number): { points: number; warnings: string[] } {
+function weighedGamefishPoints(
+  weightKg: number,
+  scoring: ScoringConfig,
+): { points: number; warnings: string[] } {
   const warnings: string[] = []
-  if (weightKg < MIN_WEIGH_KG) {
+  if (weightKg < scoring.minWeighKg) {
     return {
       points: 0,
-      warnings: [`Below minimum weight (${MIN_WEIGH_KG} kg) — fish does not score.`],
+      warnings: [
+        `Below minimum weight (${scoring.minWeighKg} kg) — fish does not score.`,
+      ],
     }
   }
   let pts = pointsFromWeighedKg(weightKg)
   if (weightKg > 10) {
-    pts += BONUS_OVER_10_KG
-    warnings.push(`Applied +${BONUS_OVER_10_KG} bonus for weight over 10 kg.`)
+    pts += scoring.bonusOver10Kg
+    warnings.push(
+      `Applied +${scoring.bonusOver10Kg} bonus for weight over 10 kg.`,
+    )
   }
   return { points: Math.round(pts * 100) / 100, warnings }
 }
 
-function lengthReleasePoints(lengthCm: number): { points: number; warnings: string[] } {
-  if (lengthCm < 70) {
-    return {
-      points: 0,
-      warnings: ['Length under 70 cm — fish does not score on the length table.'],
+function lengthTiersForSpecies(
+  speciesKey: string,
+  scoring: ScoringConfig,
+  reg: SpeciesRegistryEntry[] | null,
+): LengthTier[] {
+  if (reg?.length && scoring.lengthTiersByGroup) {
+    const entry = reg.find((e) => e.key === speciesKey)
+    const group = entry?.capGroup?.trim()
+    if (group && scoring.lengthTiersByGroup[group]?.length) {
+      return scoring.lengthTiersByGroup[group]
     }
   }
-  if (lengthCm < 80) return { points: 5, warnings: [] }
-  if (lengthCm < 100) return { points: 10, warnings: [] }
-  return { points: 15, warnings: [] }
+  if (scoring.lengthTiers.length) return scoring.lengthTiers
+  return DEFAULT_SCORING_CONFIG.lengthTiers
 }
 
-function billfishPoints(variant: 'sailfish' | 'marlin'): number {
-  return variant === 'sailfish' ? 15 : 25
+function lengthReleasePoints(
+  lengthCm: number,
+  tiers: LengthTier[],
+): { points: number; warnings: string[] } {
+  const sorted = [...tiers].sort((a, b) => a.minCm - b.minCm)
+  const minTier = sorted[0]
+  if (minTier && lengthCm < minTier.minCm) {
+    return {
+      points: 0,
+      warnings: [
+        `Length under ${minTier.minCm} cm — fish does not score on the length table.`,
+      ],
+    }
+  }
+  for (const tier of sorted) {
+    const inMax = tier.maxCm == null || lengthCm < tier.maxCm
+    if (lengthCm >= tier.minCm && inMax) {
+      return { points: tier.points, warnings: [] }
+    }
+  }
+  const top = sorted[sorted.length - 1]
+  if (top && lengthCm >= top.minCm) {
+    return { points: top.points, warnings: [] }
+  }
+  return { points: 0, warnings: ['Length does not match any scoring tier.'] }
 }
 
-/** Points for a single catch (excludes per-day species-diversity bonus). Weighed gamefish: 1 pt per kg including fractional kg (2 dp). */
+function billfishPoints(variant: string, scoring: ScoringConfig): number {
+  const custom = scoring.billfishPointsByVariant?.[variant]
+  if (custom != null) return custom
+  if (variant === 'sailfish') return scoring.billfishPoints.sailfish
+  if (variant === 'marlin') return scoring.billfishPoints.marlin
+  return 0
+}
+
 export function scoreSingleCatch(
   input: CatchInput,
   ctx: CatchValidationContext,
 ): { points: number; errors: string[]; warnings: string[] } {
+  const scoring = cfg(ctx)
+  const capMax = scoring.maxPerSpeciesPerBoatDay
   const errors: string[] = []
   const warnings: string[] = []
   const reg = ctx.speciesRegistry?.length ? ctx.speciesRegistry : null
@@ -78,18 +123,24 @@ export function scoreSingleCatch(
   const already = ctx.sameTeamDaySpeciesCounts.get(capKey) ?? 0
 
   if (input.catchKind === 'billfish_release') {
-    if (!input.billfishVariant) errors.push('Select sailfish or marlin for billfish.')
+    if (!input.billfishVariant) errors.push('Select billfish species.')
     if (input.weightKg != null && input.weightKg > 0)
       warnings.push('Billfish are released — weight is ignored for scoring.')
     if (errors.length) return { points: 0, errors, warnings }
-    const pts = billfishPoints(input.billfishVariant!)
-    if (already >= MAX_PER_SPECIES_PER_BOAT_DAY) {
+    const pts = billfishPoints(input.billfishVariant!, scoring)
+    if (pts <= 0) {
+      errors.push('Unknown billfish species for this competition.')
+      return { points: 0, errors, warnings }
+    }
+    if (already >= capMax) {
       errors.push(
-        `Species cap: max ${MAX_PER_SPECIES_PER_BOAT_DAY} scoring ${capKey} per boat per day.`,
+        `Species cap: max ${capMax} scoring ${capKey} per boat per day.`,
       )
       return { points: 0, errors, warnings }
     }
-    warnings.push('Ensure IGFA release + required video with timestamp is presented at the scale.')
+    warnings.push(
+      'Ensure IGFA release + required video with timestamp is presented at the scale.',
+    )
     return { points: pts, errors, warnings }
   }
 
@@ -108,19 +159,19 @@ export function scoreSingleCatch(
       errors.push('Enter length in cm.')
     }
     if (errors.length) return { points: 0, errors, warnings }
-    const { points, warnings: w } = lengthReleasePoints(input.lengthCm!)
+    const tiers = lengthTiersForSpecies(input.speciesKey, scoring, reg)
+    const { points, warnings: w } = lengthReleasePoints(input.lengthCm!, tiers)
     warnings.push(...w)
     if (points <= 0) return { points: 0, errors, warnings }
-    if (already >= MAX_PER_SPECIES_PER_BOAT_DAY) {
+    if (already >= capMax) {
       errors.push(
-        `Species cap: max ${MAX_PER_SPECIES_PER_BOAT_DAY} scoring ${capKey} per boat per day.`,
+        `Species cap: max ${capMax} scoring ${capKey} per boat per day.`,
       )
       return { points: 0, errors, warnings }
     }
     return { points, errors, warnings }
   }
 
-  // weighed_gamefish
   if (rules) {
     if (rules.lengthSpeciesKeys.has(input.speciesKey)) {
       errors.push(
@@ -157,19 +208,18 @@ export function scoreSingleCatch(
     errors.push('Enter weight in kg.')
     return { points: 0, errors, warnings }
   }
-  const { points, warnings: w } = weighedGamefishPoints(input.weightKg)
+  const { points, warnings: w } = weighedGamefishPoints(input.weightKg, scoring)
   warnings.push(...w)
   if (points <= 0) return { points: 0, errors, warnings }
-  if (already >= MAX_PER_SPECIES_PER_BOAT_DAY) {
+  if (already >= capMax) {
     errors.push(
-      `Species cap: max ${MAX_PER_SPECIES_PER_BOAT_DAY} scoring ${capKey} per boat per day.`,
+      `Species cap: max ${capMax} scoring ${capKey} per boat per day.`,
     )
     return { points: 0, errors, warnings }
   }
   return { points, errors, warnings }
 }
 
-/** Distinct species keys that count toward the +2 per extra species (per boat per day). */
 export function distinctSpeciesForDiversity(
   catches: { speciesKey: string; pointsTotal: number }[],
   speciesRegistry?: SpeciesRegistryEntry[] | null,
@@ -182,12 +232,14 @@ export function distinctSpeciesForDiversity(
   return set
 }
 
-export function speciesDiversityBonus(speciesCount: number): number {
+export function speciesDiversityBonus(
+  speciesCount: number,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
+): number {
   if (speciesCount <= 1) return 0
-  return (speciesCount - 1) * SPECIES_DIVERSITY_PER_EXTRA
+  return (speciesCount - 1) * scoringConfig.speciesDiversityPerExtra
 }
 
-/** Counts scoring fish (points > 0) per cap species for team+day (for 6-fish cap). */
 export function sameTeamDaySpeciesCounts(
   catches: {
     id?: string
@@ -198,7 +250,6 @@ export function sameTeamDaySpeciesCounts(
   }[],
   teamId: string,
   dayId: string,
-  /** When editing a row, exclude it so caps reflect “as if” this catch were replaced. */
   excludeCatchId?: string,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
 ): Map<string, number> {
@@ -214,4 +265,8 @@ export function sameTeamDaySpeciesCounts(
   return m
 }
 
-export { MAX_PER_SPECIES_PER_BOAT_DAY, MIN_WEIGH_KG, SPECIES_DIVERSITY_PER_EXTRA }
+export const MAX_PER_SPECIES_PER_BOAT_DAY =
+  DEFAULT_SCORING_CONFIG.maxPerSpeciesPerBoatDay
+export const MIN_WEIGH_KG = DEFAULT_SCORING_CONFIG.minWeighKg
+export const SPECIES_DIVERSITY_PER_EXTRA =
+  DEFAULT_SCORING_CONFIG.speciesDiversityPerExtra

@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
+import BusyButton from '../components/BusyButton'
 import ViewOnlyBanner from '../components/ViewOnlyBanner'
+import { useMutationBusy } from '../context/MutationBusyContext'
 import {
-  deleteAllCatches,
-  deleteAllTeamDayOverrides,
-  deleteAllTeams,
+  deleteAllCatchesForCompetition,
+  deleteAllTeamDayOverridesForCompetition,
+  deleteAllTeamsForCompetition,
 } from '../lib/resetQueries'
 import { getSupabaseClient } from '../lib/supabaseClient'
 import type { UseCatchesResult } from '../hooks/useCatches'
@@ -18,6 +20,8 @@ type Props = {
   overrides: UseTeamDayOverridesResult
   canMutate: boolean
   signedInNonAdmin: boolean
+  competitionId: string | null
+  teamIds: string[]
 }
 
 export default function DataResetPage({
@@ -26,10 +30,22 @@ export default function DataResetPage({
   overrides,
   canMutate,
   signedInNonAdmin,
+  competitionId,
+  teamIds,
 }: Props) {
-  const blocked = teams.misconfigured || teams.loading || !canMutate
+  const { runMutation } = useMutationBusy()
+  const blocked =
+    teams.misconfigured ||
+    teams.loading ||
+    teams.syncing ||
+    catches.syncing ||
+    overrides.syncing ||
+    !canMutate
   const [msg, setMsg] = useState<string | null>(null)
   const [teamsConfirm, setTeamsConfirm] = useState('')
+  const [resetBusy, setResetBusy] = useState<
+    'catches' | 'overrides' | 'teams' | null
+  >(null)
 
   const catchCount = catches.catches.length
   const overrideCount = overrides.overrides.length
@@ -41,9 +57,9 @@ export default function DataResetPage({
 
   async function refreshAll() {
     await Promise.all([
-      teams.refresh(),
-      catches.refresh(),
-      overrides.refresh(),
+      teams.refresh(true),
+      catches.refresh(true),
+      overrides.refresh(true),
     ])
   }
 
@@ -61,11 +77,18 @@ export default function DataResetPage({
       setMsg('Supabase not configured.')
       return
     }
-    const { error } = await deleteAllCatches(client)
-    if (error) setMsg(error)
-    else {
-      setMsg('All score entries were deleted.')
-      await refreshAll()
+    setResetBusy('catches')
+    try {
+      await runMutation('Deleting all catches…', async () => {
+        const { error } = await deleteAllCatchesForCompetition(client, teamIds)
+        if (error) setMsg(error)
+        else {
+          setMsg('All score entries were deleted.')
+          await refreshAll()
+        }
+      })
+    } finally {
+      setResetBusy(null)
     }
   }
 
@@ -83,11 +106,21 @@ export default function DataResetPage({
       setMsg('Supabase not configured.')
       return
     }
-    const { error } = await deleteAllTeamDayOverrides(client)
-    if (error) setMsg(error)
-    else {
-      setMsg('All disqualification overrides were cleared.')
-      await refreshAll()
+    setResetBusy('overrides')
+    try {
+      await runMutation('Clearing disqualifications…', async () => {
+        const { error } = await deleteAllTeamDayOverridesForCompetition(
+          client,
+          teamIds,
+        )
+        if (error) setMsg(error)
+        else {
+          setMsg('All disqualification overrides were cleared.')
+          await refreshAll()
+        }
+      })
+    } finally {
+      setResetBusy(null)
     }
   }
 
@@ -109,12 +142,23 @@ export default function DataResetPage({
       setMsg('Supabase not configured.')
       return
     }
-    const { error } = await deleteAllTeams(client)
-    if (error) setMsg(error)
-    else {
-      setMsg('All teams and related scoring data were removed.')
-      setTeamsConfirm('')
-      await refreshAll()
+    if (!competitionId) {
+      setMsg('No competition selected.')
+      return
+    }
+    setResetBusy('teams')
+    try {
+      await runMutation('Deleting all teams…', async () => {
+        const { error } = await deleteAllTeamsForCompetition(client, competitionId)
+        if (error) setMsg(error)
+        else {
+          setMsg('All teams and related scoring data were removed.')
+          setTeamsConfirm('')
+          await refreshAll()
+        }
+      })
+    } finally {
+      setResetBusy(null)
     }
   }
 
@@ -124,8 +168,9 @@ export default function DataResetPage({
         Data reset
       </h2>
       <p className="empty-hint small data-reset-lead">
-        Use only in emergencies. Actions apply immediately to the live database. There is no
-        undo. Species catalogue is not changed here — use the Species page for that.
+        Use only in emergencies. Actions apply to the competition you are working on in
+        the header (admin) or the public active competition. There is no undo. Species
+        catalogue is not changed here — use the Species page for that.
       </p>
 
       <ViewOnlyBanner
@@ -146,14 +191,16 @@ export default function DataResetPage({
             Deletes every row in <code>catches</code> ({catchCount} right now). Teams, anglers,
             calendar, and species list are unchanged.
           </p>
-          <button
+          <BusyButton
             type="button"
             className="btn btn-danger"
             disabled={blocked || catchCount === 0}
+            busy={resetBusy === 'catches'}
+            busyLabel="Deleting…"
             onClick={() => void runClearCatches()}
           >
             Delete all catches
-          </button>
+          </BusyButton>
         </article>
 
         <article className="data-reset-card">
@@ -162,14 +209,16 @@ export default function DataResetPage({
             Deletes every row in <code>team_day_overrides</code> ({overrideCount} right now).
             Catches and teams are unchanged.
           </p>
-          <button
+          <BusyButton
             type="button"
             className="btn btn-danger"
             disabled={blocked || overrideCount === 0}
+            busy={resetBusy === 'overrides'}
+            busyLabel="Clearing…"
             onClick={() => void runClearOverrides()}
           >
             Delete all overrides
-          </button>
+          </BusyButton>
         </article>
 
         <article className="data-reset-card data-reset-card-nuclear">
@@ -192,14 +241,16 @@ export default function DataResetPage({
               autoComplete="off"
             />
           </label>
-          <button
+          <BusyButton
             type="button"
             className="btn btn-danger"
             disabled={blocked || teamCount === 0 || teamsConfirm !== TEAMS_CONFIRM_PHRASE}
+            busy={resetBusy === 'teams'}
+            busyLabel="Deleting…"
             onClick={() => void runDeleteTeams()}
           >
             Delete all teams and related data
-          </button>
+          </BusyButton>
         </article>
       </div>
     </section>

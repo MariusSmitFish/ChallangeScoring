@@ -1,4 +1,6 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from 'react'
+import BusyButton from '../components/BusyButton'
+import { useCompetition } from '../context/CompetitionContext'
 import { useSpeciesRegistry } from '../context/SpeciesRegistryContext'
 import {
   explainAnglerDayPoints,
@@ -43,13 +45,30 @@ function BoardExpandRow({
   )
 }
 
-function TeamDayExplainView({ row }: { row: TeamDayPointsExplain }) {
+function TeamDayExplainView({
+  row,
+  multiplierMode,
+}: {
+  row: TeamDayPointsExplain
+  multiplierMode?: boolean
+}) {
   return (
     <>
       <p className="boards-breakdown-lead">
-        Fish points are summed from logged catches. The species diversity bonus
-        is +2 for each extra <em>scoring</em> species cap group that day (first
-        species does not add a bonus).
+        {multiplierMode ? (
+          <>
+            Fish points are summed from logged catches, then multiplied by the
+            species factor for the number of scoring species that day (e.g. 3
+            species → ×2). Extra fish after the first on the boat already include
+            +1 pt per catch in each row.
+          </>
+        ) : (
+          <>
+            Fish points are summed from logged catches. The species diversity bonus
+            is +2 for each extra <em>scoring</em> species cap group that day (first
+            species does not add a bonus).
+          </>
+        )}
       </p>
       <div className="boards-breakdown-day">
         <h4 className="boards-breakdown-day-title">
@@ -84,8 +103,12 @@ function TeamDayExplainView({ row }: { row: TeamDayPointsExplain }) {
               <dd>{row.scoringSpeciesCount}</dd>
             </div>
             <div>
-              <dt>Diversity bonus</dt>
-              <dd>+{formatPointsFixed2(row.diversityBonus)}</dd>
+              <dt>{multiplierMode ? 'Species factor adjustment' : 'Diversity bonus'}</dt>
+              <dd>
+                {multiplierMode && row.fishPoints > 0
+                  ? `+${formatPointsFixed2(row.diversityBonus)} (→ ${formatPointsFixed2(row.dayTotal)} total)`
+                  : `+${formatPointsFixed2(row.diversityBonus)}`}
+              </dd>
             </div>
             <div>
               <dt>Day total</dt>
@@ -314,6 +337,8 @@ export default function LeaderboardsPage({
   canMutate,
 }: Props) {
   const species = useSpeciesRegistry()
+  const { scoringConfig } = useCompetition()
+  const multiplierMode = scoringConfig.diversityMode === 'multiplier'
   const [tab, setTab] = useState<Tab>('team-overall')
   const [dayId, setDayId] = useState('')
   const [dqTeam, setDqTeam] = useState('')
@@ -341,8 +366,16 @@ export default function LeaderboardsPage({
         overrides.overrides,
         days.days,
         species.entries,
+        scoringConfig,
       ),
-    [teams.teams, catches.catches, overrides.overrides, days.days, species.entries],
+    [
+      teams.teams,
+      catches.catches,
+      overrides.overrides,
+      days.days,
+      species.entries,
+      scoringConfig,
+    ],
   )
 
   const anglerOverall = useMemo(
@@ -353,8 +386,16 @@ export default function LeaderboardsPage({
         overrides.overrides,
         days.days,
         species.entries,
+        scoringConfig,
       ),
-    [teams.teams, catches.catches, overrides.overrides, days.days, species.entries],
+    [
+      teams.teams,
+      catches.catches,
+      overrides.overrides,
+      days.days,
+      species.entries,
+      scoringConfig,
+    ],
   )
 
   const teamByDay = useMemo(() => {
@@ -365,8 +406,16 @@ export default function LeaderboardsPage({
       overrides.overrides,
       selectedDay,
       species.entries,
+      scoringConfig,
     )
-  }, [teams.teams, catches.catches, overrides.overrides, selectedDay, species.entries])
+  }, [
+    teams.teams,
+    catches.catches,
+    overrides.overrides,
+    selectedDay,
+    species.entries,
+    scoringConfig,
+  ])
 
   const anglerByDay = useMemo(() => {
     if (!selectedDay) return []
@@ -376,8 +425,16 @@ export default function LeaderboardsPage({
       overrides.overrides,
       selectedDay,
       species.entries,
+      scoringConfig,
     )
-  }, [teams.teams, catches.catches, overrides.overrides, selectedDay, species.entries])
+  }, [
+    teams.teams,
+    catches.catches,
+    overrides.overrides,
+    selectedDay,
+    species.entries,
+    scoringConfig,
+  ])
 
   const bigFishOverall = useMemo(
     () =>
@@ -401,6 +458,7 @@ export default function LeaderboardsPage({
     [teams.teams, catches.catches, days.days, species.entries],
   )
 
+  const dqSaving = overrides.syncing
   const siteDown = teams.misconfigured || teams.loading
 
   function rowExpandKey(entityId: string) {
@@ -541,6 +599,7 @@ export default function LeaderboardsPage({
                       days.days,
                       r.teamId,
                       species.entries,
+                      scoringConfig,
                     )
                   : null
                 return (
@@ -610,6 +669,7 @@ export default function LeaderboardsPage({
                       days.days,
                       r.anglerId,
                       species.entries,
+                      scoringConfig,
                     )
                   : null
                 return (
@@ -679,6 +739,7 @@ export default function LeaderboardsPage({
                       selectedDay,
                       r.teamId,
                       species.entries,
+                      scoringConfig,
                     )
                   : null
                 return (
@@ -707,7 +768,10 @@ export default function LeaderboardsPage({
                           role="region"
                           aria-labelledby={`board-trigger-${k}`}
                         >
-                          <TeamDayExplainView row={explain} />
+                          <TeamDayExplainView
+                            row={explain}
+                            multiplierMode={multiplierMode}
+                          />
                         </div>
                       </BoardExpandRow>
                     ) : null}
@@ -745,6 +809,7 @@ export default function LeaderboardsPage({
                       selectedDay,
                       r.anglerId,
                       species.entries,
+                      scoringConfig,
                     )
                   : null
                 return (
@@ -931,14 +996,16 @@ export default function LeaderboardsPage({
               />
             </label>
           </div>
-          <button
+          <BusyButton
             type="button"
             className="btn btn-primary"
-            disabled={siteDown}
+            disabled={siteDown || dqSaving}
+            busy={dqSaving}
+            busyLabel="Saving…"
             onClick={() => void saveDq()}
           >
             Save override
-          </button>
+          </BusyButton>
           {dqMsg ? (
             <p className="empty-hint" role="status">
               {dqMsg}

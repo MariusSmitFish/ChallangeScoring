@@ -29,9 +29,11 @@ const SpeciesRegistryContext = createContext<SpeciesRegistryContextValue | null>
 
 export function SpeciesRegistryProvider({
   enabled,
+  competitionId,
   children,
 }: {
   enabled: boolean
+  competitionId: string | null
   children: ReactNode
 }) {
   const [entries, setEntries] = useState<SpeciesRegistryEntry[]>([])
@@ -40,12 +42,15 @@ export function SpeciesRegistryProvider({
 
   const refresh = useCallback(async () => {
     const client = getSupabaseClient()
-    if (!client) {
+    if (!client || !competitionId) {
       setEntries([])
       setError(null)
       return
     }
-    const { entries: next, error: err } = await fetchSpeciesRegistry(client)
+    const { entries: next, error: err } = await fetchSpeciesRegistry(
+      client,
+      competitionId,
+    )
     if (err) {
       setError(err)
       setEntries([])
@@ -53,10 +58,10 @@ export function SpeciesRegistryProvider({
     }
     setError(null)
     setEntries(next)
-  }, [])
+  }, [competitionId])
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !competitionId) {
       setEntries([])
       setLoading(false)
       setError(null)
@@ -71,7 +76,7 @@ export function SpeciesRegistryProvider({
     return () => {
       cancelled = true
     }
-  }, [enabled, refresh])
+  }, [enabled, competitionId, refresh])
 
   const clearError = useCallback(() => setError(null), [])
 

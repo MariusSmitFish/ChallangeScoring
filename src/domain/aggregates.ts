@@ -1,4 +1,9 @@
 import {
+  DEFAULT_SCORING_CONFIG,
+  teamDaySpeciesAdjustment,
+  type ScoringConfig,
+} from './competitionConfig'
+import {
   distinctSpeciesForDiversity,
   speciesDiversityBonus,
 } from './scoringEngine'
@@ -124,6 +129,7 @@ function buildTeamDayExplain(
   teamId: string,
   day: CompetitionDay,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): TeamDayPointsExplain {
   const list = catches.filter(
     (c) => c.teamId === teamId && c.competitionDayId === day.id,
@@ -155,7 +161,7 @@ function buildTeamDayExplain(
   const fishPoints = roundPoints(list.reduce((s, c) => s + c.pointsTotal, 0))
   const speciesSet = distinctSpeciesForDiversity(list, speciesRegistry)
   const scoringSpeciesCount = speciesSet.size
-  const diversityBonus = speciesDiversityBonus(scoringSpeciesCount)
+  const adj = teamDaySpeciesAdjustment(fishPoints, scoringSpeciesCount, scoringConfig)
   return {
     competitionDayId: day.id,
     dayNumber: day.dayNumber,
@@ -165,8 +171,8 @@ function buildTeamDayExplain(
     catchLines,
     fishPoints,
     scoringSpeciesCount,
-    diversityBonus,
-    dayTotal: roundPoints(fishPoints + diversityBonus),
+    diversityBonus: adj.diversityBonus,
+    dayTotal: roundPoints(adj.dayTotal),
   }
 }
 
@@ -177,9 +183,18 @@ export function explainTeamOverallPoints(
   days: CompetitionDay[],
   teamId: string,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): { days: TeamDayPointsExplain[]; grandTotal: number } {
   const dayRows = days.map((d) =>
-    buildTeamDayExplain(catches, overrides, teams, teamId, d, speciesRegistry),
+    buildTeamDayExplain(
+      catches,
+      overrides,
+      teams,
+      teamId,
+      d,
+      speciesRegistry,
+      scoringConfig,
+    ),
   )
   const grandTotal = roundPoints(dayRows.reduce((s, r) => s + r.dayTotal, 0))
   return { days: dayRows, grandTotal }
@@ -192,8 +207,17 @@ export function explainTeamDayPoints(
   day: CompetitionDay,
   teamId: string,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): TeamDayPointsExplain {
-  return buildTeamDayExplain(catches, overrides, teams, teamId, day, speciesRegistry)
+  return buildTeamDayExplain(
+    catches,
+    overrides,
+    teams,
+    teamId,
+    day,
+    speciesRegistry,
+    scoringConfig,
+  )
 }
 
 export type AnglerDayPointsExplain = {
@@ -219,6 +243,7 @@ function buildAnglerDayExplain(
   anglerId: string,
   day: CompetitionDay,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): AnglerDayPointsExplain {
   const ownList = catches.filter(
     (c) =>
@@ -254,7 +279,10 @@ function buildAnglerDayExplain(
   const ownFishPoints = roundPoints(ownList.reduce((s, c) => s + c.pointsTotal, 0))
   const ownSpeciesSet = distinctSpeciesForDiversity(ownList, speciesRegistry)
   const ownScoringSpeciesCount = ownSpeciesSet.size
-  const ownDiversityBonus = speciesDiversityBonus(ownScoringSpeciesCount)
+  const ownDiversityBonus = speciesDiversityBonus(
+    ownScoringSpeciesCount,
+    scoringConfig,
+  )
   const dayTotalRaw = roundPoints(ownFishPoints + ownDiversityBonus)
   return {
     competitionDayId: day.id,
@@ -278,6 +306,7 @@ export function explainAnglerOverallPoints(
   days: CompetitionDay[],
   anglerId: string,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): { perDay: AnglerDayPointsExplain[]; grandTotal: number } {
   const anglerTeam = new Map<string, string>()
   for (const t of teams) {
@@ -287,7 +316,15 @@ export function explainAnglerOverallPoints(
   if (!tid) return { perDay: [], grandTotal: 0 }
 
   const perDay = days.map((d) =>
-    buildAnglerDayExplain(catches, overrides, tid, anglerId, d, speciesRegistry),
+    buildAnglerDayExplain(
+      catches,
+      overrides,
+      tid,
+      anglerId,
+      d,
+      speciesRegistry,
+      scoringConfig,
+    ),
   )
   const rawGrand = roundPoints(perDay.reduce((s, r) => s + r.dayTotalRaw, 0))
   return {
@@ -303,6 +340,7 @@ export function explainAnglerDayPoints(
   day: CompetitionDay,
   anglerId: string,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): AnglerDayPointsExplain | null {
   const anglerTeam = new Map<string, string>()
   for (const t of teams) {
@@ -310,7 +348,15 @@ export function explainAnglerDayPoints(
   }
   const tid = anglerTeam.get(anglerId)
   if (!tid) return null
-  return buildAnglerDayExplain(catches, overrides, tid, anglerId, day, speciesRegistry)
+  return buildAnglerDayExplain(
+    catches,
+    overrides,
+    tid,
+    anglerId,
+    day,
+    speciesRegistry,
+    scoringConfig,
+  )
 }
 
 export function leaderboardTeamOverall(
@@ -319,6 +365,7 @@ export function leaderboardTeamOverall(
   overrides: TeamDayOverride[],
   days: CompetitionDay[],
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): { teamId: string; name: string; points: number }[] {
   const dayIds = new Set(days.map((d) => d.id))
   const byTeam = new Map<string, number>()
@@ -338,10 +385,9 @@ export function leaderboardTeamOverall(
       if (isDq(overrides, t.id, d.id)) continue
       const list = catchesByTeamDay.get(`${t.id}:${d.id}`) ?? []
       const fish = roundPoints(list.reduce((s, c) => s + c.pointsTotal, 0))
-      const div = speciesDiversityBonus(
-        distinctSpeciesForDiversity(list, speciesRegistry).size,
-      )
-      total += fish + div
+      const sp = distinctSpeciesForDiversity(list, speciesRegistry).size
+      const adj = teamDaySpeciesAdjustment(fish, sp, scoringConfig)
+      total += adj.dayTotal
     }
     byTeam.set(t.id, roundPoints(total))
   }
@@ -361,6 +407,7 @@ export function leaderboardAnglerOverall(
   overrides: TeamDayOverride[],
   days: CompetitionDay[],
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): { anglerId: string; name: string; teamId: string; teamName: string; points: number }[] {
   const dayIds = new Set(days.map((d) => d.id))
   const byAngler = new Map<string, number>()
@@ -395,6 +442,7 @@ export function leaderboardAnglerOverall(
       )
       const ownDiv = speciesDiversityBonus(
         distinctSpeciesForDiversity(ownList, speciesRegistry).size,
+        scoringConfig,
       )
       pts += ownFish + ownDiv
     }
@@ -428,6 +476,7 @@ export function leaderboardTeamByDay(
   overrides: TeamDayOverride[],
   day: CompetitionDay,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): { teamId: string; name: string; points: number }[] {
   const listByTeam = new Map<string, CatchRow[]>()
   for (const c of catches) {
@@ -444,10 +493,9 @@ export function leaderboardTeamByDay(
       }
       const list = listByTeam.get(t.id) ?? []
       const fish = roundPoints(list.reduce((s, c) => s + c.pointsTotal, 0))
-      const div = speciesDiversityBonus(
-        distinctSpeciesForDiversity(list, speciesRegistry).size,
-      )
-      return { teamId: t.id, name: t.name, points: roundPoints(fish + div) }
+      const sp = distinctSpeciesForDiversity(list, speciesRegistry).size
+      const adj = teamDaySpeciesAdjustment(fish, sp, scoringConfig)
+      return { teamId: t.id, name: t.name, points: roundPoints(adj.dayTotal) }
     })
     .sort((a, b) => b.points - a.points)
 }
@@ -458,6 +506,7 @@ export function leaderboardAnglerByDay(
   overrides: TeamDayOverride[],
   day: CompetitionDay,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
 ): { anglerId: string; name: string; teamId: string; teamName: string; points: number }[] {
   const anglerTeam = new Map<string, string>()
   for (const t of teams) {
@@ -501,6 +550,7 @@ export function leaderboardAnglerByDay(
       )
       const ownDiv = speciesDiversityBonus(
         distinctSpeciesForDiversity(ownList, speciesRegistry).size,
+        scoringConfig,
       )
       rows.push({
         anglerId: m.id,

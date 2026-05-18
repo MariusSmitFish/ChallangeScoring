@@ -1,6 +1,9 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import type { SpeciesCategory, SpeciesRegistryEntry } from '../domain/species'
+import BusyButton from '../components/BusyButton'
 import ViewOnlyBanner from '../components/ViewOnlyBanner'
+import { useCompetition } from '../context/CompetitionContext'
+import { useMutationBusy } from '../context/MutationBusyContext'
 import { useSpeciesRegistry } from '../context/SpeciesRegistryContext'
 import {
   deleteSpeciesByKey,
@@ -45,9 +48,14 @@ export default function SpeciesPage({
   catches,
 }: Props) {
   const species = useSpeciesRegistry()
-  const blocked = species.loading || !canMutate
+  const { competitionId } = useCompetition()
+  const { runMutation } = useMutationBusy()
+  const blocked =
+    species.loading || catches.syncing || !canMutate || !competitionId
   const [msg, setMsg] = useState<string | null>(null)
   const [addForm, setAddForm] = useState(createEmptyAddForm)
+  const [rowBusy, setRowBusy] = useState<string | null>(null)
+  const [addBusy, setAddBusy] = useState(false)
 
   const sorted = useMemo(
     () =>
@@ -73,20 +81,31 @@ export default function SpeciesPage({
       setMsg(keyErr)
       return
     }
-    const { error } = await insertSpeciesEntry(client, {
-      key: addForm.key.trim().toLowerCase(),
-      label: addForm.label,
-      category: addForm.category,
-      capGroup: addForm.capGroup.trim() || addForm.key.trim().toLowerCase(),
-      sortOrder: defaultSortOrderForCategory(species.entries, addForm.category),
-      active: addForm.active,
-    })
-    if (error) setMsg(error)
-    else {
-      setMsg('Species added.')
-      setAddForm(createEmptyAddForm())
-      await species.refresh()
-      await catches.refresh()
+    if (!competitionId) {
+      setMsg('No competition selected.')
+      return
+    }
+    setAddBusy(true)
+    try {
+      await runMutation('Adding species…', async () => {
+        const { error } = await insertSpeciesEntry(client, competitionId, {
+          key: addForm.key.trim().toLowerCase(),
+          label: addForm.label,
+          category: addForm.category,
+          capGroup: addForm.capGroup.trim() || addForm.key.trim().toLowerCase(),
+          sortOrder: defaultSortOrderForCategory(species.entries, addForm.category),
+          active: addForm.active,
+        })
+        if (error) setMsg(error)
+        else {
+          setMsg('Species added.')
+          setAddForm(createEmptyAddForm())
+          await species.refresh()
+          await catches.refresh(true)
+        }
+      })
+    } finally {
+      setAddBusy(false)
     }
   }
 
@@ -97,18 +116,29 @@ export default function SpeciesPage({
       setMsg('Supabase not configured.')
       return
     }
-    const { error } = await updateSpeciesEntry(client, row.key, {
-      label: row.label,
-      category: row.category,
-      capGroup: row.capGroup,
-      sortOrder: row.sortOrder,
-      active: row.active,
-    })
-    if (error) setMsg(error)
-    else {
-      setMsg(`Saved “${row.key}”.`)
-      await species.refresh()
-      await catches.refresh()
+    if (!competitionId) {
+      setMsg('No competition selected.')
+      return
+    }
+    setRowBusy(row.key)
+    try {
+      await runMutation(`Saving ${row.key}…`, async () => {
+        const { error } = await updateSpeciesEntry(client, competitionId, row.key, {
+          label: row.label,
+          category: row.category,
+          capGroup: row.capGroup,
+          sortOrder: row.sortOrder,
+          active: row.active,
+        })
+        if (error) setMsg(error)
+        else {
+          setMsg(`Saved “${row.key}”.`)
+          await species.refresh()
+          await catches.refresh(true)
+        }
+      })
+    } finally {
+      setRowBusy(null)
     }
   }
 
@@ -131,12 +161,23 @@ export default function SpeciesPage({
       setMsg('Supabase not configured.')
       return
     }
-    const { error } = await deleteSpeciesByKey(client, row.key)
-    if (error) setMsg(error)
-    else {
-      setMsg(`Deleted “${row.key}”.`)
-      await species.refresh()
-      await catches.refresh()
+    if (!competitionId) {
+      setMsg('No competition selected.')
+      return
+    }
+    setRowBusy(row.key)
+    try {
+      await runMutation(`Deleting ${row.key}…`, async () => {
+        const { error } = await deleteSpeciesByKey(client, competitionId, row.key)
+        if (error) setMsg(error)
+        else {
+          setMsg(`Deleted “${row.key}”.`)
+          await species.refresh()
+          await catches.refresh(true)
+        }
+      })
+    } finally {
+      setRowBusy(null)
     }
   }
 
@@ -233,9 +274,15 @@ export default function SpeciesPage({
             <span>Active (shown in entry form)</span>
           </label>
         </div>
-        <button type="submit" className="btn btn-primary" disabled={blocked}>
+        <BusyButton
+          type="submit"
+          className="btn btn-primary"
+          disabled={blocked}
+          busy={addBusy}
+          busyLabel="Adding…"
+        >
           Add species
-        </button>
+        </BusyButton>
       </form>
 
       <h3 className="score-day-log-title species-table-heading">
@@ -268,6 +315,7 @@ export default function SpeciesPage({
                   initial={row}
                   allEntries={species.entries}
                   disabled={blocked}
+                  rowBusy={rowBusy === row.key}
                   onSave={saveRow}
                   onDelete={deleteRow}
                 />
@@ -284,12 +332,14 @@ function SpeciesRowEditor({
   initial,
   allEntries,
   disabled,
+  rowBusy,
   onSave,
   onDelete,
 }: {
   initial: SpeciesRegistryEntry
   allEntries: SpeciesRegistryEntry[]
   disabled: boolean
+  rowBusy: boolean
   onSave: (row: SpeciesRegistryEntry) => void | Promise<void>
   onDelete: (row: SpeciesRegistryEntry) => void | Promise<void>
 }) {
@@ -353,10 +403,12 @@ function SpeciesRowEditor({
       </td>
       <td>
         <div className="species-row-actions">
-          <button
+          <BusyButton
             type="button"
             className="btn btn-secondary btn-small"
             disabled={disabled || !dirty}
+            busy={rowBusy}
+            busyLabel="Saving…"
             onClick={() => {
               const others = allEntries.filter((e) => e.key !== initial.key)
               const sortOrder =
@@ -374,15 +426,17 @@ function SpeciesRowEditor({
             }}
           >
             Save
-          </button>
-          <button
+          </BusyButton>
+          <BusyButton
             type="button"
             className="btn btn-danger btn-small"
             disabled={disabled}
+            busy={rowBusy}
+            busyLabel="Deleting…"
             onClick={() => void onDelete(initial)}
           >
             Delete
-          </button>
+          </BusyButton>
         </div>
       </td>
     </tr>

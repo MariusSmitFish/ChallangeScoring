@@ -13,10 +13,12 @@ export function mapCompetitionDay(row: DayRow): CompetitionDay {
 
 export async function fetchCompetitionDays(
   client: SupabaseClient,
+  competitionId: string,
 ): Promise<{ days: CompetitionDay[]; error: string | null }> {
   const { data, error } = await client
     .from('competition_days')
     .select('id, day_date, day_number')
+    .eq('competition_id', competitionId)
     .order('day_number', { ascending: true })
 
   if (error) return { days: [], error: error.message }

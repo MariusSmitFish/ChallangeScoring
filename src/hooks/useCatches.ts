@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { ScoringConfig } from '../domain/competitionConfig'
 import type { CatchRow } from '../domain/aggregates'
 import type { SpeciesRegistryEntry } from '../domain/species'
 import {
@@ -25,9 +26,10 @@ export type InsertCatchPayload = {
 export type UseCatchesResult = {
   catches: CatchRow[]
   loading: boolean
+  syncing: boolean
   error: string | null
   clearError: () => void
-  refresh: () => Promise<void>
+  refresh: (background?: boolean) => Promise<void>
   addCatch: (payload: InsertCatchPayload) => Promise<{ error: string | null }>
   updateCatch: (
     id: string,
@@ -46,59 +48,97 @@ function newId(): string {
 export function useCatches(
   enabled: boolean,
   canMutate: boolean,
+  teamIds: string[],
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig?: ScoringConfig,
 ): UseCatchesResult {
   const [catches, setCatches] = useState<CatchRow[]>([])
   const [loading, setLoading] = useState(enabled)
+  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    const client = getSupabaseClient()
-    if (!client) return
-    const { catches: next, error: err } = await fetchCatches(client, speciesRegistry)
-    if (err) {
-      setError(err)
-      return
-    }
-    setError(null)
-    setCatches(next)
-  }, [speciesRegistry])
+  const teamKey = teamIds.join(',')
+
+  const refresh = useCallback(
+    async (background = false) => {
+      const client = getSupabaseClient()
+      if (!client) return
+      if (background) setSyncing(true)
+      else setLoading(true)
+      try {
+        const { catches: next, error: err } = await fetchCatches(
+          client,
+          teamIds,
+          speciesRegistry,
+          scoringConfig,
+        )
+        if (err) {
+          setError(err)
+          return
+        }
+        setError(null)
+        setCatches(next)
+      } finally {
+        if (background) setSyncing(false)
+        else setLoading(false)
+      }
+    },
+    [teamIds, speciesRegistry, scoringConfig],
+  )
 
   useEffect(() => {
     if (!enabled) {
       setCatches([])
       setLoading(false)
+      setSyncing(false)
       setError(null)
       return
     }
     let cancelled = false
     void (async () => {
       setLoading(true)
-      await refresh()
-      if (!cancelled) setLoading(false)
+      const client = getSupabaseClient()
+      if (!client) {
+        if (!cancelled) setLoading(false)
+        return
+      }
+      const { catches: next, error: err } = await fetchCatches(
+        client,
+        teamIds,
+        speciesRegistry,
+        scoringConfig,
+      )
+      if (!cancelled) {
+        if (err) setError(err)
+        else {
+          setError(null)
+          setCatches(next)
+        }
+        setLoading(false)
+      }
     })()
     return () => {
       cancelled = true
     }
-  }, [enabled, refresh])
+  }, [enabled, teamKey, speciesRegistry, scoringConfig, teamIds])
 
   const addCatch = useCallback(
     async (payload: InsertCatchPayload) => {
       if (!canMutate) {
-        return {
-          error: 'Admin sign-in required to save catches.',
-        }
+        return { error: 'Admin sign-in required to save catches.' }
       }
       const client = getSupabaseClient()
       if (!client) return { error: 'Supabase not configured' as string | null }
       const id = newId()
+      setSyncing(true)
       const { error: err } = await insertCatchRow(client, { id, ...payload })
       if (err) {
         setError(err)
+        setSyncing(false)
         return { error: err }
       }
       setError(null)
-      await refresh()
+      await refresh(true)
       return { error: null as string | null }
     },
     [refresh, canMutate],
@@ -111,13 +151,15 @@ export function useCatches(
       }
       const client = getSupabaseClient()
       if (!client) return { error: 'Supabase not configured' as string | null }
+      setSyncing(true)
       const { error: err } = await updateCatchRow(client, { id, ...payload })
       if (err) {
         setError(err)
+        setSyncing(false)
         return { error: err }
       }
       setError(null)
-      await refresh()
+      await refresh(true)
       return { error: null as string | null }
     },
     [refresh, canMutate],
@@ -130,16 +172,21 @@ export function useCatches(
       }
       const client = getSupabaseClient()
       if (!client) return { error: 'Supabase not configured' as string | null }
+      const snapshot = catches
+      setCatches((prev) => prev.filter((c) => c.id !== id))
+      setSyncing(true)
       const { error: err } = await deleteCatchById(client, id)
       if (err) {
+        setCatches(snapshot)
         setError(err)
+        setSyncing(false)
         return { error: err }
       }
       setError(null)
-      await refresh()
+      await refresh(true)
       return { error: null as string | null }
     },
-    [refresh, canMutate],
+    [refresh, canMutate, catches],
   )
 
   const clearError = useCallback(() => setError(null), [])
@@ -147,6 +194,7 @@ export function useCatches(
   return {
     catches,
     loading,
+    syncing,
     error,
     clearError,
     refresh,

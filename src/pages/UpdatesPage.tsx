@@ -1,6 +1,8 @@
 import { type FormEvent, useMemo, useState } from 'react'
+import BusyButton from '../components/BusyButton'
 import ViewOnlyBanner from '../components/ViewOnlyBanner'
-import { COMPETITION_NAME } from '../domain/competition'
+import { useCompetition } from '../context/CompetitionContext'
+import { useMutationBusy } from '../context/MutationBusyContext'
 import type { UseCommitteeUpdatesResult } from '../hooks/useCommitteeUpdates'
 import type { CommitteeUpdate } from '../lib/committeeUpdateQueries'
 import {
@@ -51,9 +53,13 @@ export default function UpdatesPage({
   canMutate,
   signedInNonAdmin,
 }: Props) {
+  const { viewCompetition, activeCompetition, competitionId } = useCompetition()
+  const comp = viewCompetition ?? activeCompetition
+  const { runMutation } = useMutationBusy()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [msg, setMsg] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const editing = useMemo(
     () => (editingId ? updates.find((u) => u.id === editingId) : undefined),
@@ -106,16 +112,27 @@ export default function UpdatesPage({
         return
       }
     }
-    const { error: err } = await insertCommitteeUpdate(client, {
-      title: form.title,
-      body: form.body,
-      publish,
-    })
-    if (err) setMsg(err)
-    else {
-      setMsg(publish ? 'Update published.' : 'Draft saved.')
-      startNew()
-      await refresh()
+    if (!competitionId) {
+      setMsg('No competition selected.')
+      return
+    }
+    setSaving(true)
+    try {
+      await runMutation(publish ? 'Publishing update…' : 'Saving draft…', async () => {
+        const { error: err } = await insertCommitteeUpdate(client, competitionId, {
+          title: form.title,
+          body: form.body,
+          publish,
+        })
+        if (err) setMsg(err)
+        else {
+          setMsg(publish ? 'Update published.' : 'Draft saved.')
+          startNew()
+          await refresh()
+        }
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -163,24 +180,37 @@ export default function UpdatesPage({
       }
     }
 
-    const { error: err } = await updateCommitteeUpdate(client, editingId, {
-      title: form.title,
-      body: form.body,
-      publishedAt,
-    })
-    if (err) setMsg(err)
-    else {
-      setMsg(
-        mode === 'unpublish'
-          ? 'Moved to drafts (no longer visible to the public).'
-          : mode === 'publish'
-            ? 'Published.'
-            : mode === 'save_published'
-              ? 'Changes saved.'
-              : 'Draft saved.',
-      )
-      startNew()
-      await refresh()
+    const labels: Record<typeof mode, string> = {
+      draft: 'Saving draft…',
+      publish: 'Publishing…',
+      save_published: 'Saving changes…',
+      unpublish: 'Unpublishing…',
+    }
+    setSaving(true)
+    try {
+      await runMutation(labels[mode], async () => {
+        const { error: err } = await updateCommitteeUpdate(client, editingId, {
+          title: form.title,
+          body: form.body,
+          publishedAt,
+        })
+        if (err) setMsg(err)
+        else {
+          setMsg(
+            mode === 'unpublish'
+              ? 'Moved to drafts (no longer visible to the public).'
+              : mode === 'publish'
+                ? 'Published.'
+                : mode === 'save_published'
+                  ? 'Changes saved.'
+                  : 'Draft saved.',
+          )
+          startNew()
+          await refresh()
+        }
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -192,12 +222,19 @@ export default function UpdatesPage({
       setMsg('Supabase not configured.')
       return
     }
-    const { error: err } = await deleteCommitteeUpdate(client, id)
-    if (err) setMsg(err)
-    else {
-      setMsg('Deleted.')
-      if (editingId === id) startNew()
-      await refresh()
+    setSaving(true)
+    try {
+      await runMutation('Deleting update…', async () => {
+        const { error: err } = await deleteCommitteeUpdate(client, id)
+        if (err) setMsg(err)
+        else {
+          setMsg('Deleted.')
+          if (editingId === id) startNew()
+          await refresh()
+        }
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -207,7 +244,7 @@ export default function UpdatesPage({
     <div className="panel updates-panel">
       <h2 className="panel-title">Committee updates</h2>
       <p className="updates-intro">
-        News and notices from the <strong>{COMPETITION_NAME}</strong> committee.
+        News and notices from the <strong>{comp?.name ?? 'the'}</strong> committee.
         {showAdminForm
           ? ' Signed-in admins can publish or edit drafts below.'
           : ' Check back here for launch briefings, schedule changes, and scoring notes.'}
@@ -260,37 +297,49 @@ export default function UpdatesPage({
                 <>
                   {editing?.publishedAt ? (
                     <>
-                      <button
+                      <BusyButton
                         type="button"
                         className="btn btn-primary"
+                        busy={saving}
+                        busyLabel="Saving…"
+                        disabled={saving}
                         onClick={(e) => void handleUpdate(e, 'save_published')}
                       >
                         Save changes
-                      </button>
-                      <button
+                      </BusyButton>
+                      <BusyButton
                         type="button"
                         className="btn btn-secondary"
+                        busy={saving}
+                        busyLabel="Unpublishing…"
+                        disabled={saving}
                         onClick={(e) => void handleUpdate(e, 'unpublish')}
                       >
                         Unpublish (draft)
-                      </button>
+                      </BusyButton>
                     </>
                   ) : (
                     <>
-                      <button
+                      <BusyButton
                         type="button"
                         className="btn btn-secondary"
+                        busy={saving}
+                        busyLabel="Saving…"
+                        disabled={saving}
                         onClick={(e) => void handleUpdate(e, 'draft')}
                       >
                         Save draft
-                      </button>
-                      <button
+                      </BusyButton>
+                      <BusyButton
                         type="button"
                         className="btn btn-primary"
+                        busy={saving}
+                        busyLabel="Publishing…"
+                        disabled={saving}
                         onClick={(e) => void handleUpdate(e, 'publish')}
                       >
                         Publish
-                      </button>
+                      </BusyButton>
                     </>
                   )}
                   <button
@@ -303,20 +352,26 @@ export default function UpdatesPage({
                 </>
               ) : (
                 <>
-                  <button
+                  <BusyButton
                     type="button"
                     className="btn btn-secondary"
+                    busy={saving}
+                    busyLabel="Saving…"
+                    disabled={saving}
                     onClick={(e) => void handleCreate(e, false)}
                   >
                     Save draft
-                  </button>
-                  <button
+                  </BusyButton>
+                  <BusyButton
                     type="button"
                     className="btn btn-primary"
+                    busy={saving}
+                    busyLabel="Publishing…"
+                    disabled={saving}
                     onClick={(e) => void handleCreate(e, true)}
                   >
                     Publish
-                  </button>
+                  </BusyButton>
                 </>
               )}
             </div>
@@ -367,13 +422,16 @@ export default function UpdatesPage({
                   >
                     Edit
                   </button>
-                  <button
+                  <BusyButton
                     type="button"
                     className="btn btn-ghost btn-small"
+                    busy={saving}
+                    busyLabel="Deleting…"
+                    disabled={saving}
                     onClick={() => void handleDelete(u.id)}
                   >
                     Delete
-                  </button>
+                  </BusyButton>
                 </div>
               ) : null}
             </div>

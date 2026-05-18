@@ -9,9 +9,10 @@ import { getSupabaseClient } from '../lib/supabaseClient'
 export type UseTeamDayOverridesResult = {
   overrides: TeamDayOverride[]
   loading: boolean
+  syncing: boolean
   error: string | null
   clearError: () => void
-  refresh: () => Promise<void>
+  refresh: (background?: boolean) => Promise<void>
   setDisqualified: (
     teamId: string,
     competitionDayId: string,
@@ -23,40 +24,49 @@ export type UseTeamDayOverridesResult = {
 export function useTeamDayOverrides(
   enabled: boolean,
   canMutate: boolean,
+  teamIds: string[],
 ): UseTeamDayOverridesResult {
   const [overrides, setOverrides] = useState<TeamDayOverride[]>([])
   const [loading, setLoading] = useState(enabled)
+  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const teamKey = teamIds.join(',')
 
-  const refresh = useCallback(async () => {
-    const client = getSupabaseClient()
-    if (!client) return
-    const { overrides: next, error: err } = await fetchTeamDayOverrides(client)
-    if (err) {
-      setError(err)
-      return
-    }
-    setError(null)
-    setOverrides(next)
-  }, [])
+  const refresh = useCallback(
+    async (background = false) => {
+      const client = getSupabaseClient()
+      if (!client) return
+      if (background) setSyncing(true)
+      else setLoading(true)
+      try {
+        const { overrides: next, error: err } = await fetchTeamDayOverrides(
+          client,
+          teamIds,
+        )
+        if (err) {
+          setError(err)
+          return
+        }
+        setError(null)
+        setOverrides(next)
+      } finally {
+        if (background) setSyncing(false)
+        else setLoading(false)
+      }
+    },
+    [teamIds],
+  )
 
   useEffect(() => {
     if (!enabled) {
       setOverrides([])
       setLoading(false)
+      setSyncing(false)
       setError(null)
       return
     }
-    let cancelled = false
-    void (async () => {
-      setLoading(true)
-      await refresh()
-      if (!cancelled) setLoading(false)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [enabled, refresh])
+    void refresh(false)
+  }, [enabled, teamKey, refresh])
 
   const setDisqualified = useCallback(
     async (
@@ -70,6 +80,19 @@ export function useTeamDayOverrides(
       }
       const client = getSupabaseClient()
       if (!client) return { error: 'Supabase not configured' as string | null }
+
+      const snapshot = overrides
+      setOverrides((prev) => {
+        const rest = prev.filter(
+          (o) => !(o.teamId === teamId && o.competitionDayId === competitionDayId),
+        )
+        if (!disqualified) return rest
+        return [
+          ...rest,
+          { teamId, competitionDayId, disqualified: true, reason },
+        ]
+      })
+      setSyncing(true)
       const { error: err } = await upsertTeamDayOverride(client, {
         teamId,
         competitionDayId,
@@ -77,17 +100,19 @@ export function useTeamDayOverrides(
         reason,
       })
       if (err) {
+        setOverrides(snapshot)
         setError(err)
+        setSyncing(false)
         return { error: err }
       }
       setError(null)
-      await refresh()
+      await refresh(true)
       return { error: null as string | null }
     },
-    [refresh, canMutate],
+    [refresh, canMutate, overrides],
   )
 
   const clearError = useCallback(() => setError(null), [])
 
-  return { overrides, loading, error, clearError, refresh, setDisqualified }
+  return { overrides, loading, syncing, error, clearError, refresh, setDisqualified }
 }

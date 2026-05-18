@@ -39,10 +39,12 @@ export function sortCommitteeUpdates(rows: CommitteeUpdate[]): CommitteeUpdate[]
 
 export async function fetchCommitteeUpdates(
   client: SupabaseClient,
+  competitionId: string,
 ): Promise<{ updates: CommitteeUpdate[]; error: string | null }> {
   const { data, error } = await client
     .from('committee_updates')
     .select('id, title, body, published_at, created_at, updated_at')
+    .eq('competition_id', competitionId)
     .order('created_at', { ascending: false })
 
   if (error) return { updates: [], error: error.message }
@@ -58,10 +60,12 @@ export type InsertCommitteeUpdateInput = {
 
 export async function insertCommitteeUpdate(
   client: SupabaseClient,
+  competitionId: string,
   input: InsertCommitteeUpdateInput,
 ): Promise<{ error: string | null }> {
   const now = new Date().toISOString()
   const { error } = await client.from('committee_updates').insert({
+    competition_id: competitionId,
     title: input.title.trim(),
     body: input.body.trim(),
     published_at: input.publish ? now : null,

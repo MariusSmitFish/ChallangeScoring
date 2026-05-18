@@ -2,6 +2,7 @@ export type AppView =
   | 'rules'
   | 'schedule'
   | 'updates'
+  | 'competitions'
   | 'teams'
   | 'species'
   | 'score'
@@ -20,6 +21,7 @@ const LINKS: { id: AppView; label: string; committeeOnly?: true }[] = [
   { id: 'rules', label: 'Rules' },
   { id: 'schedule', label: 'Schedule' },
   { id: 'updates', label: 'Updates' },
+  { id: 'competitions', label: 'Competitions', committeeOnly: true },
   { id: 'teams', label: 'Teams', committeeOnly: true },
   { id: 'species', label: 'Species', committeeOnly: true },
   { id: 'data-reset', label: 'Data reset', committeeOnly: true },

@@ -4,6 +4,8 @@ import {
   sameTeamDaySpeciesCounts,
   scoreSingleCatch,
 } from '../domain/scoringEngine'
+import { billfishVariantLabels } from '../domain/competitionConfig'
+import { useCompetition } from '../context/CompetitionContext'
 import { useSpeciesRegistry } from '../context/SpeciesRegistryContext'
 import {
   SPECIES_KEYS,
@@ -13,6 +15,7 @@ import type { CatchRow } from '../domain/aggregates'
 import type { UseCatchesResult } from '../hooks/useCatches'
 import type { UseCompetitionDaysResult } from '../hooks/useCompetitionDays'
 import type { UseTeamsResult } from '../hooks/useTeams'
+import BusyButton from '../components/BusyButton'
 import ViewOnlyBanner from '../components/ViewOnlyBanner'
 import { formatPointsDisplay, roundPoints } from '../lib/formatPoints'
 
@@ -32,8 +35,18 @@ export default function ScoreEntryPage({
   signedInNonAdmin,
 }: Props) {
   const species = useSpeciesRegistry()
+  const { scoringConfig } = useCompetition()
+  const billfishOptions = useMemo(
+    () => billfishVariantLabels(scoringConfig),
+    [scoringConfig],
+  )
+  const saving = catches.syncing
   const blocked =
-    teams.misconfigured || teams.loading || days.loading || !canMutate
+    teams.misconfigured ||
+    teams.loading ||
+    days.loading ||
+    saving ||
+    !canMutate
   const noDays = !teams.misconfigured && !days.loading && days.days.length === 0
 
   const [editingCatchId, setEditingCatchId] = useState<string | null>(null)
@@ -45,9 +58,16 @@ export default function ScoreEntryPage({
   const [speciesKey, setSpeciesKey] = useState<string>(SPECIES_KEYS.yellowfin)
   const [weightStr, setWeightStr] = useState('')
   const [lengthStr, setLengthStr] = useState('')
-  const [billVariant, setBillVariant] = useState<'sailfish' | 'marlin'>('sailfish')
+  const [billVariant, setBillVariant] = useState('sailfish')
   const [notes, setNotes] = useState('')
   const [submitMsg, setSubmitMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (catchKind !== 'billfish_release') return
+    if (!billfishOptions.some((o) => o.id === billVariant)) {
+      setBillVariant(billfishOptions[0]?.id ?? 'sailfish')
+    }
+  }, [catchKind, billfishOptions, billVariant])
 
   const members = useMemo(() => {
     const t = teams.teams.find((x) => x.id === teamId)
@@ -94,12 +114,7 @@ export default function ScoreEntryPage({
       editingCatchId ?? undefined,
       species.entries,
     )
-    const sk =
-      catchKind === 'billfish_release'
-        ? billVariant === 'sailfish'
-          ? SPECIES_KEYS.sailfish
-          : SPECIES_KEYS.marlin
-        : speciesKey
+    const sk = catchKind === 'billfish_release' ? billVariant : speciesKey
     return scoreSingleCatch(
       {
         catchKind,
@@ -108,7 +123,11 @@ export default function ScoreEntryPage({
         lengthCm: Number.isFinite(lengthCm as number) ? lengthCm : null,
         billfishVariant: catchKind === 'billfish_release' ? billVariant : null,
       },
-      { sameTeamDaySpeciesCounts: counts, speciesRegistry: species.entries },
+      {
+        sameTeamDaySpeciesCounts: counts,
+        speciesRegistry: species.entries,
+        scoringConfig,
+      },
     )
   }, [
     teamId,
@@ -118,6 +137,7 @@ export default function ScoreEntryPage({
     speciesKey,
     billVariant,
     weightKg,
+    scoringConfig,
     lengthCm,
     editingCatchId,
     species.entries,
@@ -158,7 +178,7 @@ export default function ScoreEntryPage({
     setAnglerId(c.anglerId)
     setCatchKind(c.catchKind as CatchKind)
     if (c.catchKind === 'billfish_release') {
-      setBillVariant(c.speciesKey === SPECIES_KEYS.marlin ? 'marlin' : 'sailfish')
+      setBillVariant(c.billfishVariant ?? c.speciesKey ?? 'sailfish')
     } else {
       setSpeciesKey(c.speciesKey)
     }
@@ -200,12 +220,7 @@ export default function ScoreEntryPage({
       setSubmitMsg(preview?.errors.join(' ') ?? 'Fix validation errors before saving.')
       return
     }
-    const sk =
-      catchKind === 'billfish_release'
-        ? billVariant === 'sailfish'
-          ? SPECIES_KEYS.sailfish
-          : SPECIES_KEYS.marlin
-        : speciesKey
+    const sk = catchKind === 'billfish_release' ? billVariant : speciesKey
     const payload = {
       teamId,
       anglerId,
@@ -346,9 +361,9 @@ export default function ScoreEntryPage({
               }}
               disabled={blocked}
             >
-              <option value="weighed_gamefish">Weighed gamefish / queenfish / barracuda</option>
-              <option value="length_release">Kingfish or kakaap (measure & release)</option>
-              <option value="billfish_release">Billfish (release, fixed points)</option>
+              <option value="weighed_gamefish">Weighed gamefish</option>
+              <option value="length_release">Measure & release (length table)</option>
+              <option value="billfish_release">Billfish (tag & release)</option>
             </select>
           </label>
 
@@ -358,13 +373,14 @@ export default function ScoreEntryPage({
               <select
                 className="input"
                 value={billVariant}
-                onChange={(e) =>
-                  setBillVariant(e.target.value as 'sailfish' | 'marlin')
-                }
+                onChange={(e) => setBillVariant(e.target.value)}
                 disabled={blocked}
               >
-                <option value="sailfish">Sailfish (15 pts)</option>
-                <option value="marlin">Marlin (25 pts)</option>
+                {billfishOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label} ({o.points} pts)
+                  </option>
+                ))}
               </select>
             </label>
           ) : catchKind === 'length_release' ? (
@@ -474,9 +490,15 @@ export default function ScoreEntryPage({
               Cancel edit
             </button>
           ) : null}
-          <button type="submit" className="btn btn-primary" disabled={blocked || noDays}>
+          <BusyButton
+            type="submit"
+            className="btn btn-primary"
+            disabled={blocked || noDays}
+            busy={saving}
+            busyLabel={editingCatchId ? 'Updating…' : 'Saving…'}
+          >
             {editingCatchId ? 'Update catch' : 'Save catch'}
-          </button>
+          </BusyButton>
         </div>
       </form>
 
@@ -522,14 +544,16 @@ export default function ScoreEntryPage({
                         >
                           Edit
                         </button>
-                        <button
+                        <BusyButton
                           type="button"
                           className="btn btn-danger btn-small"
                           disabled={blocked}
+                          busy={saving}
+                          busyLabel="Deleting…"
                           onClick={() => void handleDeleteCatch(c)}
                         >
                           Delete
-                        </button>
+                        </BusyButton>
                       </td>
                     </tr>
                   ))}

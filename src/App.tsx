@@ -1,13 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import AppNav, { type AppView } from './components/AppNav'
+import CompetitionSwitcher from './components/CompetitionSwitcher'
+import MutationStatusBar from './components/MutationStatusBar'
+import { CompetitionProvider, useCompetition } from './context/CompetitionContext'
+import {
+  MutationBusyProvider,
+  useMutationBusy,
+} from './context/MutationBusyContext'
 import { SpeciesRegistryProvider, useSpeciesRegistry } from './context/SpeciesRegistryContext'
-import { COMPETITION_NAME } from './domain/competition'
 import { useCatches } from './hooks/useCatches'
 import { useCommitteeUpdates } from './hooks/useCommitteeUpdates'
 import { useCompetitionDays } from './hooks/useCompetitionDays'
 import { useTeamDayOverrides } from './hooks/useTeamDayOverrides'
 import { useTeams } from './hooks/useTeams'
+import { getSupabaseClient } from './lib/supabaseClient'
 import LeaderboardsPage from './pages/LeaderboardsPage'
 import LoginPage from './pages/LoginPage'
 import RulesPage from './pages/RulesPage'
@@ -17,6 +24,7 @@ import DataResetPage from './pages/DataResetPage'
 import SpeciesPage from './pages/SpeciesPage'
 import TeamsPage from './pages/TeamsPage'
 import UpdatesPage from './pages/UpdatesPage'
+import CompetitionsPage from './pages/CompetitionsPage'
 import './App.css'
 
 type AppInnerProps = {
@@ -26,8 +34,6 @@ type AppInnerProps = {
   canMutate: boolean
   signedInNonAdmin: boolean
   signOut: () => Promise<void>
-  teams: ReturnType<typeof useTeams>
-  committeeUpdates: ReturnType<typeof useCommitteeUpdates>
   enabled: boolean
 }
 
@@ -38,14 +44,35 @@ function AppInner({
   canMutate,
   signedInNonAdmin,
   signOut,
-  teams,
-  committeeUpdates,
   enabled,
 }: AppInnerProps) {
+  const competition = useCompetition()
   const species = useSpeciesRegistry()
-  const days = useCompetitionDays(enabled)
-  const catches = useCatches(enabled, canMutate, species.entries)
-  const overrides = useTeamDayOverrides(enabled, canMutate)
+  const { competitionId, scoringConfig, viewCompetition, activeCompetition } =
+    competition
+
+  const teams = useTeams(canMutate, competitionId)
+  const teamIds = useMemo(() => teams.teams.map((t) => t.id), [teams.teams])
+  const days = useCompetitionDays(enabled, competitionId)
+  const catches = useCatches(
+    enabled,
+    canMutate,
+    teamIds,
+    species.entries,
+    scoringConfig,
+  )
+  const overrides = useTeamDayOverrides(enabled, canMutate, teamIds)
+  const committeeUpdates = useCommitteeUpdates(enabled, canMutate, competitionId)
+  const { busy: mutationBusy, label: mutationLabel } = useMutationBusy()
+
+  const dataSyncing =
+    teams.syncing || catches.syncing || overrides.syncing
+  const showBusyBar = mutationBusy || dataSyncing
+  const busyLabel = mutationBusy
+    ? mutationLabel
+    : dataSyncing
+      ? 'Updating data…'
+      : null
 
   const [view, setView] = useState<AppView>('rules')
 
@@ -56,13 +83,15 @@ function AppInner({
       (view === 'teams' ||
         view === 'score' ||
         view === 'species' ||
-        view === 'data-reset')
+        view === 'data-reset' ||
+        view === 'competitions')
     ) {
       setView('rules')
     }
   }, [authLoading, canMutate, view])
 
   const apiError =
+    competition.error ??
     teams.error ??
     days.error ??
     catches.error ??
@@ -71,6 +100,7 @@ function AppInner({
     committeeUpdates.error
 
   function clearAllErrors() {
+    competition.clearError()
     teams.clearError()
     days.clearError()
     catches.clearError()
@@ -83,6 +113,21 @@ function AppInner({
     setView(loginIsAdmin ? 'score' : 'boards')
   }
 
+  const displayName =
+    (canMutate ? viewCompetition?.name : activeCompetition?.name) ?? 'Competition'
+  const displayMeta = useMemo(() => {
+    const c = canMutate ? viewCompetition : activeCompetition
+    if (!c) return ''
+    const parts: string[] = []
+    if (c.year) parts.push(String(c.year))
+    if (days.days.length) parts.push(`${days.days.length} fishing days`)
+    const venue = c.venue ?? c.schedule.venue
+    if (venue) parts.push(venue)
+    return parts.filter(Boolean).join(' · ')
+  }, [canMutate, viewCompetition, activeCompetition, days.days.length])
+
+  const noCompetition = enabled && !competition.loading && !competitionId
+
   return (
     <div className="app-root">
       <header className="app-topbar">
@@ -91,19 +136,20 @@ function AppInner({
             <img
               className="app-brand-logo"
               src="/file.jpg"
-              alt={`${COMPETITION_NAME} logo`}
+              alt={`${displayName} logo`}
               width={40}
               height={40}
               decoding="async"
             />
             <div className="app-brand-text">
-              <span className="app-brand-title">{COMPETITION_NAME}</span>
-              <span className="app-brand-meta">
-                June 2026 · 5 fishing days · Barcos
-              </span>
+              <span className="app-brand-title">{displayName}</span>
+              {displayMeta ? (
+                <span className="app-brand-meta">{displayMeta}</span>
+              ) : null}
             </div>
           </div>
           <div className="app-topbar-actions">
+            <CompetitionSwitcher canMutate={canMutate} />
             {authLoading ? (
               <span className="topbar-auth-muted">Checking session…</span>
             ) : user ? (
@@ -142,6 +188,8 @@ function AppInner({
         </div>
       </header>
 
+      <MutationStatusBar busy={showBusyBar} label={busyLabel} />
+
       <div className="app-nav-shell">
         <div className="app-width">
           <AppNav
@@ -154,6 +202,13 @@ function AppInner({
 
       <div className="app-body">
         <div className="app-width app-alerts">
+          {noCompetition ? (
+            <div className="banner banner-warn" role="status">
+              No active competition. Run{' '}
+              <code className="env-code">supabase-schema-07-competitions.sql</code>{' '}
+              and sign in as admin to create or activate one.
+            </div>
+          ) : null}
           {apiError ? (
             <div className="banner banner-error" role="alert">
               <span>{apiError}</span>
@@ -169,18 +224,25 @@ function AppInner({
         </div>
 
         <div className="app-width">
-          <main className="app-main">
+          <main
+            className={
+              showBusyBar ? 'app-main app-main-syncing' : 'app-main'
+            }
+          >
             {view === 'login' ? (
               <LoginPage onSuccess={handleLoginSuccess} />
             ) : null}
             {view === 'rules' ? <RulesPage /> : null}
-            {view === 'schedule' ? <SchedulePage /> : null}
+            {view === 'schedule' ? <SchedulePage days={days.days} /> : null}
             {view === 'updates' ? (
               <UpdatesPage
                 updates={committeeUpdates}
                 canMutate={canMutate}
                 signedInNonAdmin={signedInNonAdmin}
               />
+            ) : null}
+            {view === 'competitions' ? (
+              <CompetitionsPage canMutate={canMutate} />
             ) : null}
             {view === 'teams' ? (
               <TeamsPage
@@ -203,6 +265,8 @@ function AppInner({
                 overrides={overrides}
                 canMutate={canMutate}
                 signedInNonAdmin={signedInNonAdmin}
+                competitionId={competitionId}
+                teamIds={teamIds}
               />
             ) : null}
             {view === 'score' ? (
@@ -227,7 +291,7 @@ function AppInner({
 
           <footer className="app-footer">
             <span>
-              <strong>{COMPETITION_NAME}</strong> · Competition scoring
+              <strong>{displayName}</strong> · Competition scoring
             </span>
             <span>IGFA rules apply · Committee decisions final</span>
           </footer>
@@ -237,28 +301,34 @@ function AppInner({
   )
 }
 
+function AppWithSpecies(props: AppInnerProps) {
+  const { competitionId } = useCompetition()
+  return (
+    <SpeciesRegistryProvider enabled={props.enabled} competitionId={competitionId}>
+      <AppInner {...props} />
+    </SpeciesRegistryProvider>
+  )
+}
+
 export default function App() {
   const { user, isAdmin, loading: authLoading, signOut } = useAuth()
   const canMutate = !authLoading && !!user && isAdmin
   const signedInNonAdmin = !authLoading && !!user && !isAdmin
-
-  const teams = useTeams(canMutate)
-  const enabled = !teams.misconfigured
-  const committeeUpdates = useCommitteeUpdates(enabled, canMutate)
+  const enabled = !!getSupabaseClient()
 
   return (
-    <SpeciesRegistryProvider enabled={enabled}>
-      <AppInner
-        user={user}
-        isAdmin={isAdmin}
-        authLoading={authLoading}
-        canMutate={canMutate}
-        signedInNonAdmin={signedInNonAdmin}
-        signOut={signOut}
-        teams={teams}
-        committeeUpdates={committeeUpdates}
-        enabled={enabled}
-      />
-    </SpeciesRegistryProvider>
+    <CompetitionProvider enabled={enabled} canMutate={canMutate}>
+      <MutationBusyProvider>
+        <AppWithSpecies
+          user={user}
+          isAdmin={isAdmin}
+          authLoading={authLoading}
+          canMutate={canMutate}
+          signedInNonAdmin={signedInNonAdmin}
+          signOut={signOut}
+          enabled={enabled}
+        />
+      </MutationBusyProvider>
+    </CompetitionProvider>
   )
 }

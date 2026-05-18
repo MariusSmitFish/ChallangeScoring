@@ -6,10 +6,12 @@ type MemberRow = { id: string; team_id: string; name: string }
 
 export async function loadTeamsFromSupabase(
   client: SupabaseClient,
+  competitionId: string,
 ): Promise<{ teams: Team[]; error: string | null }> {
   const { data: teamRows, error: teamErr } = await client
     .from('teams')
     .select('id, name')
+    .eq('competition_id', competitionId)
     .order('created_at', { ascending: true })
 
   if (teamErr) return { teams: [], error: teamErr.message }

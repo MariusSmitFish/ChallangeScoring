@@ -23,10 +23,12 @@ export function mapSpeciesRow(row: SpeciesDb): SpeciesRegistryEntry {
 
 export async function fetchSpeciesRegistry(
   client: SupabaseClient,
+  competitionId: string,
 ): Promise<{ entries: SpeciesRegistryEntry[]; error: string | null }> {
   const { data, error } = await client
     .from('species_registry')
     .select('key, label, category, cap_group, sort_order, active')
+    .eq('competition_id', competitionId)
     .order('category', { ascending: true })
     .order('sort_order', { ascending: true })
     .order('key', { ascending: true })
@@ -50,6 +52,7 @@ export function validateSpeciesKey(key: string): string | null {
 
 export async function insertSpeciesEntry(
   client: SupabaseClient,
+  competitionId: string,
   row: {
     key: string
     label: string
@@ -63,6 +66,7 @@ export async function insertSpeciesEntry(
   if (err) return { error: err }
   const cap = row.capGroup.trim() || row.key.trim().toLowerCase()
   const { error } = await client.from('species_registry').insert({
+    competition_id: competitionId,
     key: row.key.trim().toLowerCase(),
     label: row.label.trim(),
     category: row.category,
@@ -75,6 +79,7 @@ export async function insertSpeciesEntry(
 
 export async function updateSpeciesEntry(
   client: SupabaseClient,
+  competitionId: string,
   key: string,
   row: {
     label: string
@@ -95,17 +100,20 @@ export async function updateSpeciesEntry(
       active: row.active,
       updated_at: new Date().toISOString(),
     })
+    .eq('competition_id', competitionId)
     .eq('key', key)
   return { error: error?.message ?? null }
 }
 
 export async function deleteSpeciesByKey(
   client: SupabaseClient,
+  competitionId: string,
   key: string,
 ): Promise<{ error: string | null }> {
   const { data, error, count } = await client
     .from('species_registry')
     .delete({ count: 'exact' })
+    .eq('competition_id', competitionId)
     .eq('key', key)
     .select('key')
 

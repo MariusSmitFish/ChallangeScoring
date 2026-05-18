@@ -439,6 +439,59 @@ textarea.input,
   min-height: 2rem;
 }
 
+.btn-spinner,
+.mutation-status-spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mutation-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-bottom: 1px solid var(--border);
+  color: var(--text-h);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.mutation-status-spinner {
+  color: var(--accent);
+}
+
+.app-main-syncing {
+  pointer-events: none;
+}
+
+.app-main-syncing .mutation-status,
+.app-main-syncing .app-topbar,
+.app-main-syncing .app-nav-shell {
+  pointer-events: auto;
+}
+
+.panel-syncing-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .empty-hint {
   margin: 0;
   font-size: 0.9375rem;
@@ -1248,4 +1301,89 @@ textarea.input,
   color: var(--text, #e6e9ef);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ——— Multi-competition ——— */
+
+.comp-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+.comp-switcher-select {
+  min-width: 10rem;
+  max-width: 14rem;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.comp-switcher-pill {
+  font-size: 0.6875rem;
+}
+
+.competitions-intro {
+  margin-bottom: 1.25rem;
+}
+
+.competitions-list {
+  list-style: none;
+  margin: 0 0 1.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.competition-card {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border, #2a3344);
+  border-radius: var(--radius, 8px);
+  background: var(--surface, #151922);
+}
+
+.competition-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.competition-card-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.competition-card-badges {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.competition-card-meta {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.competition-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.competitions-create-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.competitions-form .field {
+  margin-bottom: 0.75rem;
+}
+
+.competitions-msg {
+  margin-top: 0.75rem;
 }

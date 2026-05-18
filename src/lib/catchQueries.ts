@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ScoringConfig } from '../domain/competitionConfig'
 import type { CatchRow, TeamDayOverride } from '../domain/aggregates'
 import type { SpeciesRegistryEntry } from '../domain/species'
 import {
@@ -38,8 +39,8 @@ function catchRowToInput(c: CatchRow): CatchInput | null {
     weightKg: c.weightKg,
     lengthCm: c.lengthCm,
     billfishVariant:
-      c.billfishVariant === 'sailfish' || c.billfishVariant === 'marlin'
-        ? c.billfishVariant
+      c.billfishVariant && c.billfishVariant.trim()
+        ? c.billfishVariant.trim()
         : null,
   }
 }
@@ -51,6 +52,7 @@ function catchRowToInput(c: CatchRow): CatchInput | null {
 export function rehydrateCatchFishPoints(
   catches: CatchRow[],
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig?: ScoringConfig,
 ): CatchRow[] {
   const byKey = new Map<string, CatchRow[]>()
   for (const c of catches) {
@@ -69,6 +71,8 @@ export function rehydrateCatchFishPoints(
       return a.id.localeCompare(b.id)
     })
     const acc: CatchRow[] = []
+    let scoringFishIndex = 0
+    const extraPerFish = scoringConfig?.bonusPerScoringFishAfterFirst ?? 0
     for (const c of sorted) {
       const input = catchRowToInput(c)
       let next: CatchRow
@@ -85,10 +89,18 @@ export function rehydrateCatchFishPoints(
         const { points, errors } = scoreSingleCatch(input, {
           sameTeamDaySpeciesCounts: counts,
           speciesRegistry,
+          scoringConfig,
         })
+        let pts = errors.length ? 0 : points
+        if (pts > 0) {
+          scoringFishIndex += 1
+          if (extraPerFish > 0 && scoringFishIndex > 1) {
+            pts += extraPerFish
+          }
+        }
         next = {
           ...c,
-          pointsTotal: roundPoints(errors.length ? 0 : points),
+          pointsTotal: roundPoints(pts),
         }
       }
       acc.push(next)
@@ -118,19 +130,25 @@ export function mapCatch(row: CatchDb): CatchRow {
 
 export async function fetchCatches(
   client: SupabaseClient,
+  teamIds: string[],
   speciesRegistry?: SpeciesRegistryEntry[] | null,
+  scoringConfig?: ScoringConfig,
 ): Promise<{ catches: CatchRow[]; error: string | null }> {
+  if (teamIds.length === 0) {
+    return { catches: [], error: null }
+  }
   const { data, error } = await client
     .from('catches')
     .select(
       'id, team_id, angler_id, competition_day_id, catch_kind, species_key, weight_kg, length_cm, billfish_variant, points_total, notes, created_at',
     )
+    .in('team_id', teamIds)
     .order('created_at', { ascending: false })
 
   if (error) return { catches: [], error: error.message }
   const mapped = ((data ?? []) as CatchDb[]).map(mapCatch)
   return {
-    catches: rehydrateCatchFishPoints(mapped, speciesRegistry),
+    catches: rehydrateCatchFishPoints(mapped, speciesRegistry, scoringConfig),
     error: null,
   }
 }
@@ -153,10 +171,15 @@ export function mapOverride(row: OverrideDb): TeamDayOverride {
 
 export async function fetchTeamDayOverrides(
   client: SupabaseClient,
+  teamIds: string[],
 ): Promise<{ overrides: TeamDayOverride[]; error: string | null }> {
+  if (teamIds.length === 0) {
+    return { overrides: [], error: null }
+  }
   const { data, error } = await client
     .from('team_day_overrides')
     .select('team_id, competition_day_id, disqualified, reason')
+    .in('team_id', teamIds)
 
   if (error) return { overrides: [], error: error.message }
   return {

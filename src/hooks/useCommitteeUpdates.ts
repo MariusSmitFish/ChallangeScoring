@@ -15,9 +15,10 @@ export type UseCommitteeUpdatesResult = {
 export function useCommitteeUpdates(
   enabled: boolean,
   canMutate: boolean,
+  competitionId: string | null,
 ): UseCommitteeUpdatesResult {
   const supabase = useMemo(() => getSupabaseClient(), [])
-  const ok = enabled && !!supabase
+  const ok = enabled && !!supabase && !!competitionId
 
   const [updates, setUpdates] = useState<CommitteeUpdate[]>([])
   const [loading, setLoading] = useState(ok)
@@ -25,15 +26,18 @@ export function useCommitteeUpdates(
 
   const refresh = useCallback(async () => {
     const client: SupabaseClient | null = getSupabaseClient()
-    if (!client) return
-    const { updates: next, error: err } = await fetchCommitteeUpdates(client)
+    if (!client || !competitionId) return
+    const { updates: next, error: err } = await fetchCommitteeUpdates(
+      client,
+      competitionId,
+    )
     if (err) {
       setError(err)
       return
     }
     setError(null)
     setUpdates(next)
-  }, [])
+  }, [competitionId])
 
   useEffect(() => {
     if (!ok) {
@@ -51,7 +55,7 @@ export function useCommitteeUpdates(
     return () => {
       cancelled = true
     }
-  }, [ok, canMutate, refresh])
+  }, [ok, canMutate, competitionId, refresh])
 
   const clearError = useCallback(() => setError(null), [])
 

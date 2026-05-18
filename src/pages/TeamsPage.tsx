@@ -12,7 +12,7 @@ export default function TeamsPage({
   signedInNonAdmin,
   ...t
 }: TeamsPageProps) {
-  const blocked = t.misconfigured || t.loading || !canMutate
+  const blocked = t.misconfigured || t.loading || t.syncing || !canMutate
   const [newTeamName, setNewTeamName] = useState('')
 
   function handleAddTeam(e: FormEvent) {
@@ -31,6 +31,13 @@ export default function TeamsPage({
         show={!t.misconfigured && !t.loading && !canMutate}
         signedInNonAdmin={signedInNonAdmin}
       />
+
+      {t.syncing && !t.loading ? (
+        <p className="panel-syncing-hint" role="status">
+          <span className="btn-spinner" aria-hidden="true" />
+          Saving changes…
+        </p>
+      ) : null}
 
       <form className="inline-form" onSubmit={handleAddTeam}>
         <label className="sr-only" htmlFor="new-team-name">
