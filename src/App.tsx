@@ -130,8 +130,10 @@ function AppInner({
 
   return (
     <div className="app-root">
+      <div className={`app-chrome${canMutate ? ' app-chrome-admin' : ''}`}>
       <header className="app-topbar">
         <div className="app-topbar-inner">
+          <div className="app-topbar-row app-topbar-row-primary">
           <div className="app-brand">
             <img
               className="app-brand-logo"
@@ -148,8 +150,7 @@ function AppInner({
               ) : null}
             </div>
           </div>
-          <div className="app-topbar-actions">
-            <CompetitionSwitcher canMutate={canMutate} />
+          <div className="app-topbar-auth">
             {authLoading ? (
               <span className="topbar-auth-muted">Checking session…</span>
             ) : user ? (
@@ -177,26 +178,46 @@ function AppInner({
                 Admin sign in
               </button>
             )}
-            {teams.misconfigured ? (
-              <span className="status-pill status-pill-warn">
-                Setup required
-              </span>
-            ) : (
-              <span className="status-pill status-pill-ok">Connected</span>
-            )}
+            {!canMutate ? (
+              teams.misconfigured ? (
+                <span className="status-pill status-pill-warn app-topbar-conn">
+                  Setup required
+                </span>
+              ) : (
+                <span className="status-pill status-pill-ok app-topbar-conn">
+                  Connected
+                </span>
+              )
+            ) : null}
           </div>
+          </div>
+          {canMutate ? (
+            <div className="app-topbar-row app-topbar-row-tools">
+              <CompetitionSwitcher canMutate={canMutate} />
+              {teams.misconfigured ? (
+                <span className="status-pill status-pill-warn app-topbar-conn">
+                  Setup required
+                </span>
+              ) : (
+                <span className="status-pill status-pill-ok app-topbar-conn">
+                  Connected
+                </span>
+              )}
+            </div>
+          ) : null}
         </div>
       </header>
 
-      <MutationStatusBar busy={showBusyBar} label={busyLabel} />
+        <MutationStatusBar busy={showBusyBar} label={busyLabel} />
 
-      <div className="app-nav-shell">
-        <div className="app-width">
-          <AppNav
-            view={view}
-            onChange={setView}
-            showCommitteeTabs={canMutate}
-          />
+        <div className="app-nav-shell">
+          <div className="app-width">
+            <AppNav
+              view={view}
+              onChange={setView}
+              showCommitteeTabs={canMutate}
+            />
+          </div>
         </div>
       </div>
 

@@ -17,16 +17,21 @@ type NavProps = {
   showCommitteeTabs: boolean
 }
 
-const LINKS: { id: AppView; label: string; committeeOnly?: true }[] = [
+const LINKS: {
+  id: AppView
+  label: string
+  shortLabel?: string
+  committeeOnly?: true
+}[] = [
   { id: 'rules', label: 'Rules' },
   { id: 'schedule', label: 'Schedule' },
   { id: 'updates', label: 'Updates' },
-  { id: 'competitions', label: 'Competitions', committeeOnly: true },
+  { id: 'competitions', label: 'Competitions', shortLabel: 'Comps', committeeOnly: true },
   { id: 'teams', label: 'Teams', committeeOnly: true },
   { id: 'species', label: 'Species', committeeOnly: true },
-  { id: 'data-reset', label: 'Data reset', committeeOnly: true },
-  { id: 'score', label: 'Score entry', committeeOnly: true },
-  { id: 'boards', label: 'Leaderboards' },
+  { id: 'data-reset', label: 'Data reset', shortLabel: 'Reset', committeeOnly: true },
+  { id: 'score', label: 'Score entry', shortLabel: 'Score', committeeOnly: true },
+  { id: 'boards', label: 'Leaderboards', shortLabel: 'Boards' },
 ]
 
 export default function AppNav({
@@ -44,6 +49,7 @@ export default function AppNav({
       <div className="app-nav-scroll">
         {visibleLinks.map((l) => {
           const active = mainView === l.id
+          const short = l.shortLabel ?? l.label
           return (
             <button
               key={l.id}
@@ -52,7 +58,8 @@ export default function AppNav({
               aria-current={active ? 'page' : undefined}
               onClick={() => onChange(l.id)}
             >
-              {l.label}
+              <span className="nav-label-long">{l.label}</span>
+              <span className="nav-label-short">{short}</span>
             </button>
           )
         })}

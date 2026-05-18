@@ -38,11 +38,12 @@ export default function CompetitionSwitcher({ canMutate }: Props) {
       {viewCompetition && !viewCompetition.isActive ? (
         <button
           type="button"
-          className="btn btn-secondary btn-small"
+          className="btn btn-secondary btn-small comp-switcher-activate"
           disabled={loading}
           onClick={() => void setAsActive(viewCompetition.id)}
         >
-          Set as public active
+          <span className="comp-switcher-activate-long">Set as public active</span>
+          <span className="comp-switcher-activate-short">Make public</span>
         </button>
       ) : null}
       {viewCompetition?.isActive ? (

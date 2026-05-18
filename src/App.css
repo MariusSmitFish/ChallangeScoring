@@ -7,27 +7,52 @@
   flex: 1;
 }
 
-.app-topbar {
+.app-chrome {
   position: sticky;
   top: 0;
   z-index: 50;
-  height: var(--topbar-h);
-  border-bottom: 1px solid var(--chrome-border);
   background: var(--chrome-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: var(--shadow-sm);
 }
 
+.app-topbar {
+  border-bottom: 1px solid var(--chrome-border);
+}
+
 .app-topbar-inner {
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: 0 1rem;
-  height: 100%;
+  padding: 0.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.app-topbar-row {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.app-topbar-row-primary {
   justify-content: space-between;
-  gap: 1rem;
+}
+
+.app-topbar-row-tools {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.app-topbar-auth {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  flex-shrink: 0;
 }
 
 .app-brand {
@@ -72,6 +97,7 @@
   letter-spacing: 0.02em;
 }
 
+/* legacy alias — use .app-topbar-auth */
 .app-topbar-actions {
   display: flex;
   align-items: center;
@@ -117,13 +143,8 @@
 }
 
 .app-nav-shell {
-  position: sticky;
-  top: var(--topbar-h);
-  z-index: 40;
   border-bottom: 1px solid var(--chrome-border);
   background: color-mix(in srgb, var(--chrome-bg) 96%, var(--bg));
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .app-width {
@@ -478,8 +499,7 @@ textarea.input,
 }
 
 .app-main-syncing .mutation-status,
-.app-main-syncing .app-topbar,
-.app-main-syncing .app-nav-shell {
+.app-main-syncing .app-chrome {
   pointer-events: auto;
 }
 
@@ -1310,18 +1330,213 @@ textarea.input,
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  margin-right: 0.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.comp-switcher-label {
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 
 .comp-switcher-select {
-  min-width: 10rem;
-  max-width: 14rem;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   font-size: 0.8125rem;
   padding: 0.35rem 0.5rem;
 }
 
 .comp-switcher-pill {
   font-size: 0.6875rem;
+  white-space: nowrap;
+}
+
+.comp-switcher-activate-long {
+  display: none;
+}
+
+.comp-switcher-activate-short {
+  display: inline;
+}
+
+.nav-label-short {
+  display: none;
+}
+
+/* ——— Mobile layout ——— */
+
+@media (max-width: 47.99rem) {
+  .app-width {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .app-topbar-inner {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .app-brand-meta {
+    display: none;
+  }
+
+  .app-chrome-admin .app-brand-title {
+    font-size: 0.9375rem;
+  }
+
+  .app-topbar-row-tools {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-topbar-row-tools .app-topbar-conn {
+    align-self: flex-end;
+  }
+
+  .comp-switcher {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .comp-switcher .btn {
+    width: 100%;
+  }
+
+  .comp-switcher-pill {
+    align-self: flex-start;
+  }
+
+  .topbar-auth-status {
+    max-width: 5.5rem;
+  }
+
+  .panel {
+    padding: 1rem 0.85rem 1.15rem;
+  }
+
+  .score-form .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inline-form .input,
+  .inline-form .btn {
+    width: 100%;
+  }
+
+  .team-row,
+  .member-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .team-actions,
+  .member-actions {
+    justify-content: flex-start;
+  }
+
+  .updates-form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .updates-form-actions .btn {
+    width: 100%;
+  }
+
+  .boards-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .boards-head .btn {
+    width: 100%;
+  }
+
+  .nav-label-long {
+    display: none;
+  }
+
+  .nav-label-short {
+    display: inline;
+  }
+}
+
+@media (min-width: 48rem) {
+  .app-topbar-inner {
+    padding: 0 1rem;
+    min-height: var(--topbar-h);
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .app-chrome-admin .app-topbar-inner {
+    flex-direction: column;
+    align-items: stretch;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .app-chrome-admin .app-topbar-row-primary {
+    width: 100%;
+  }
+
+  .app-chrome-admin .app-topbar-row-tools {
+    width: 100%;
+  }
+
+  .comp-switcher-activate-long {
+    display: inline;
+  }
+
+  .comp-switcher-activate-short {
+    display: none;
+  }
+}
+
+@media (min-width: 64rem) {
+  .app-chrome-admin .app-topbar-inner {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1rem;
+    padding-top: 0;
+    padding-bottom: 0;
+    min-height: var(--topbar-h);
+  }
+
+  .app-chrome-admin .app-topbar-row-primary {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .app-chrome-admin .app-topbar-row-tools {
+    flex: 0 1 auto;
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .comp-switcher {
+    flex: 0 1 auto;
+  }
+
+  .comp-switcher-label {
+    flex: 0 1 auto;
+  }
+
+  .comp-switcher-select {
+    min-width: 10rem;
+    max-width: 14rem;
+    width: auto;
+  }
 }
 
 .competitions-intro {
