@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { APP_LOGO_SRC, APP_NAME, APP_TAGLINE } from '../brand'
 
 type Props = {
   onSuccess: (isAdmin: boolean) => void
@@ -27,6 +28,17 @@ export default function LoginPage({ onSuccess }: Props) {
 
   return (
     <div className="panel login-panel">
+      <div className="login-brand">
+        <img
+          className="login-brand-mark"
+          src={APP_LOGO_SRC}
+          alt={APP_NAME}
+          width={220}
+          height={56}
+          decoding="async"
+        />
+        <p className="login-brand-tagline">{APP_TAGLINE}</p>
+      </div>
       <h2 className="panel-title">Admin sign in</h2>
       <p className="empty-hint login-hint">
         Committee accounts only. Everyone else can use the site without signing

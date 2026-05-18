@@ -25,6 +25,7 @@ import SpeciesPage from './pages/SpeciesPage'
 import TeamsPage from './pages/TeamsPage'
 import UpdatesPage from './pages/UpdatesPage'
 import CompetitionsPage from './pages/CompetitionsPage'
+import { APP_LOGO_SRC, APP_NAME } from './brand'
 import './App.css'
 
 type AppInnerProps = {
@@ -136,15 +137,15 @@ function AppInner({
           <div className="app-topbar-row app-topbar-row-primary">
           <div className="app-brand">
             <img
-              className="app-brand-logo"
-              src="/file.jpg"
-              alt={`${displayName} logo`}
-              width={40}
-              height={40}
+              className="app-brand-mark"
+              src={APP_LOGO_SRC}
+              alt={APP_NAME}
+              width={152}
+              height={44}
               decoding="async"
             />
-            <div className="app-brand-text">
-              <span className="app-brand-title">{displayName}</span>
+            <div className="app-brand-event">
+              <span className="app-brand-event-name">{displayName}</span>
               {displayMeta ? (
                 <span className="app-brand-meta">{displayMeta}</span>
               ) : null}
@@ -312,7 +313,13 @@ function AppInner({
 
           <footer className="app-footer">
             <span>
-              <strong>{displayName}</strong> · Competition scoring
+              <strong>{APP_NAME}</strong>
+              {displayName !== 'Competition' ? (
+                <>
+                  {' '}
+                  · <span className="app-footer-event">{displayName}</span>
+                </>
+              ) : null}
             </span>
             <span>IGFA rules apply · Committee decisions final</span>
           </footer>
