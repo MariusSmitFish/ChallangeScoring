@@ -18,10 +18,10 @@ export default function TeamsPage({
 }: TeamsPageProps) {
   const blocked = t.misconfigured || t.loading || t.syncing || !canMutate
   const [newTeamName, setNewTeamName] = useState('')
-  const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(() => new Set())
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(() => new Set())
 
   function toggleTeamCollapsed(teamId: string) {
-    setCollapsedTeams((prev) => {
+    setExpandedTeams((prev) => {
       const next = new Set(prev)
       if (next.has(teamId)) next.delete(teamId)
       else next.add(teamId)
@@ -30,11 +30,11 @@ export default function TeamsPage({
   }
 
   function collapseAllTeams() {
-    setCollapsedTeams(new Set(t.teams.map((team) => team.id)))
+    setExpandedTeams(new Set())
   }
 
   function expandAllTeams() {
-    setCollapsedTeams(new Set())
+    setExpandedTeams(new Set(t.teams.map((team) => team.id)))
   }
 
   function handleAddTeam(e: FormEvent) {
@@ -110,7 +110,7 @@ export default function TeamsPage({
           ) : null}
           <ul className="team-list">
           {t.teams.map((team) => {
-            const collapsed = collapsedTeams.has(team.id)
+            const collapsed = !expandedTeams.has(team.id)
             return (
             <li
               key={team.id}
