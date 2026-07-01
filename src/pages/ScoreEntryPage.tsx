@@ -24,7 +24,6 @@ type Props = {
   days: UseCompetitionDaysResult
   catches: UseCatchesResult
   canMutate: boolean
-  signedInNonAdmin: boolean
 }
 
 export default function ScoreEntryPage({
@@ -32,7 +31,6 @@ export default function ScoreEntryPage({
   days,
   catches,
   canMutate,
-  signedInNonAdmin,
 }: Props) {
   const species = useSpeciesRegistry()
   const { scoringConfig } = useCompetition()
@@ -266,7 +264,6 @@ export default function ScoreEntryPage({
           !days.loading &&
           !canMutate
         }
-        signedInNonAdmin={signedInNonAdmin}
       />
 
       <p className="empty-hint score-hint">

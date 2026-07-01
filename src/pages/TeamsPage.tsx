@@ -4,12 +4,10 @@ import type { UseTeamsResult } from '../hooks/useTeams'
 
 type TeamsPageProps = UseTeamsResult & {
   canMutate: boolean
-  signedInNonAdmin: boolean
 }
 
 export default function TeamsPage({
   canMutate,
-  signedInNonAdmin,
   ...t
 }: TeamsPageProps) {
   const blocked = t.misconfigured || t.loading || t.syncing || !canMutate
@@ -29,7 +27,6 @@ export default function TeamsPage({
 
       <ViewOnlyBanner
         show={!t.misconfigured && !t.loading && !canMutate}
-        signedInNonAdmin={signedInNonAdmin}
       />
 
       {t.syncing && !t.loading ? (

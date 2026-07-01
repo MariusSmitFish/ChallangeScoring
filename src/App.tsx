@@ -31,20 +31,16 @@ import './App.css'
 
 type AppInnerProps = {
   user: ReturnType<typeof useAuth>['user']
-  isAdmin: boolean
   authLoading: boolean
   canMutate: boolean
-  signedInNonAdmin: boolean
   signOut: () => Promise<void>
   enabled: boolean
 }
 
 function AppInner({
   user,
-  isAdmin,
   authLoading,
   canMutate,
-  signedInNonAdmin,
   signOut,
   enabled,
 }: AppInnerProps) {
@@ -77,8 +73,7 @@ function AppInner({
       : null
 
   const [view, setView] = useState<AppView>('rules')
-  const isSuperAdmin = isSuperAdminEmail(user?.email)
-  const showSuperAdminTabs = canMutate && isSuperAdmin
+  const showSuperAdminTabs = canMutate && isSuperAdminEmail(user?.email)
 
   useEffect(() => {
     if (authLoading) return
@@ -117,8 +112,8 @@ function AppInner({
     committeeUpdates.clearError()
   }
 
-  function handleLoginSuccess(loginIsAdmin: boolean) {
-    setView(loginIsAdmin ? 'score' : 'boards')
+  function handleLoginSuccess() {
+    setView('score')
   }
 
   const displayName =
@@ -167,7 +162,7 @@ function AppInner({
                   className="topbar-auth-status"
                   title={user.email ?? undefined}
                 >
-                  {isAdmin ? 'Admin' : 'View only'}
+                  {canMutate ? 'Committee' : 'View only'}
                 </span>
                 <button
                   type="button"
@@ -199,7 +194,7 @@ function AppInner({
             ) : null}
           </div>
           </div>
-          {canMutate ? (
+          {canMutate && showSuperAdminTabs ? (
             <div className="app-topbar-row app-topbar-row-tools">
               <CompetitionSwitcher canMutate={canMutate} />
               {teams.misconfigured ? (
@@ -265,28 +260,16 @@ function AppInner({
             {view === 'rules' ? <RulesPage /> : null}
             {view === 'schedule' ? <SchedulePage days={days.days} /> : null}
             {view === 'updates' ? (
-              <UpdatesPage
-                updates={committeeUpdates}
-                canMutate={canMutate}
-                signedInNonAdmin={signedInNonAdmin}
-              />
+              <UpdatesPage updates={committeeUpdates} canMutate={canMutate} />
             ) : null}
             {view === 'competitions' && showSuperAdminTabs ? (
               <CompetitionsPage canMutate={canMutate} />
             ) : null}
             {view === 'teams' ? (
-              <TeamsPage
-                {...teams}
-                canMutate={canMutate}
-                signedInNonAdmin={signedInNonAdmin}
-              />
+              <TeamsPage {...teams} canMutate={canMutate} />
             ) : null}
             {view === 'species' ? (
-              <SpeciesPage
-                canMutate={canMutate}
-                signedInNonAdmin={signedInNonAdmin}
-                catches={catches}
-              />
+              <SpeciesPage canMutate={canMutate} catches={catches} />
             ) : null}
             {view === 'data-reset' ? (
               <DataResetPage
@@ -294,7 +277,6 @@ function AppInner({
                 catches={catches}
                 overrides={overrides}
                 canMutate={canMutate}
-                signedInNonAdmin={signedInNonAdmin}
                 competitionId={competitionId}
                 teamIds={teamIds}
               />
@@ -305,7 +287,6 @@ function AppInner({
                 days={days}
                 catches={catches}
                 canMutate={canMutate}
-                signedInNonAdmin={signedInNonAdmin}
               />
             ) : null}
             {view === 'boards' ? (
@@ -347,20 +328,21 @@ function AppWithSpecies(props: AppInnerProps) {
 }
 
 export default function App() {
-  const { user, isAdmin, loading: authLoading, signOut } = useAuth()
-  const canMutate = !authLoading && !!user && isAdmin
-  const signedInNonAdmin = !authLoading && !!user && !isAdmin
+  const { user, loading: authLoading, signOut } = useAuth()
+  const canMutate = !authLoading && !!user
+  const showSuperAdminTabs = canMutate && isSuperAdminEmail(user?.email)
   const enabled = !!getSupabaseClient()
 
   return (
-    <CompetitionProvider enabled={enabled} canMutate={canMutate}>
+    <CompetitionProvider
+      enabled={enabled}
+      canManageCompetitions={showSuperAdminTabs}
+    >
       <MutationBusyProvider>
         <AppWithSpecies
           user={user}
-          isAdmin={isAdmin}
           authLoading={authLoading}
           canMutate={canMutate}
-          signedInNonAdmin={signedInNonAdmin}
           signOut={signOut}
           enabled={enabled}
         />

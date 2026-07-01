@@ -45,19 +45,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   })
 }
 
-async function fetchIsAdmin(userId: string): Promise<boolean> {
-  const client = getSupabaseClient()
-  if (!client) return false
-  try {
-    const { data, error } = await client
-      .from('app_admins')
-      .select('user_id')
-      .eq('user_id', userId)
-      .maybeSingle()
-    return !!data && !error
-  } catch {
-    return false
-  }
+async function fetchIsAdmin(userId: string | undefined): Promise<boolean> {
+  return !!userId
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthContext'
 import { APP_LOGO_SRC, APP_NAME, APP_TAGLINE } from '../brand'
 
 type Props = {
-  onSuccess: (isAdmin: boolean) => void
+  onSuccess: () => void
 }
 
 export default function LoginPage({ onSuccess }: Props) {
@@ -17,13 +17,13 @@ export default function LoginPage({ onSuccess }: Props) {
     e.preventDefault()
     setError(null)
     setBusy(true)
-    const { error: err, isAdmin } = await signIn(email.trim(), password)
+    const { error: err } = await signIn(email.trim(), password)
     setBusy(false)
     if (err) {
       setError(err)
       return
     }
-    onSuccess(isAdmin)
+    onSuccess()
   }
 
   return (

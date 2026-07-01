@@ -16,7 +16,6 @@ import type { UseCatchesResult } from '../hooks/useCatches'
 
 type Props = {
   canMutate: boolean
-  signedInNonAdmin: boolean
   catches: UseCatchesResult
 }
 
@@ -44,7 +43,6 @@ function defaultSortOrderForCategory(
 
 export default function SpeciesPage({
   canMutate,
-  signedInNonAdmin,
   catches,
 }: Props) {
   const species = useSpeciesRegistry()
@@ -193,10 +191,7 @@ export default function SpeciesPage({
         stay on the separate billfish entry (not listed here).
       </p>
 
-      <ViewOnlyBanner
-        show={!species.loading && !canMutate}
-        signedInNonAdmin={signedInNonAdmin}
-      />
+      <ViewOnlyBanner show={!species.loading && !canMutate} />
 
       {species.error ? (
         <div className="banner banner-error" role="alert">

@@ -53,11 +53,12 @@ const CompetitionContext = createContext<CompetitionContextValue | null>(null)
 
 export function CompetitionProvider({
   enabled,
-  canMutate,
+  canManageCompetitions,
   children,
 }: {
   enabled: boolean
-  canMutate: boolean
+  /** Super-admin only: switch competitions and set public active. */
+  canManageCompetitions: boolean
   children: ReactNode
 }) {
   const [competitions, setCompetitions] = useState<Competition[]>([])
@@ -77,15 +78,15 @@ export function CompetitionProvider({
   )
 
   const viewCompetition = useMemo(() => {
-    if (canMutate && selectedId) {
+    if (canManageCompetitions && selectedId) {
       const picked = competitions.find((c) => c.id === selectedId)
       if (picked) return picked
     }
     return activeCompetition
-  }, [canMutate, selectedId, competitions, activeCompetition])
+  }, [canManageCompetitions, selectedId, competitions, activeCompetition])
 
   useEffect(() => {
-    if (!canMutate || !activeCompetition) return
+    if (!canManageCompetitions || !activeCompetition) return
     if (!selectedId) {
       setSelectedId(activeCompetition.id)
       try {
@@ -94,7 +95,7 @@ export function CompetitionProvider({
         /* ignore */
       }
     }
-  }, [canMutate, activeCompetition, selectedId])
+  }, [canManageCompetitions, activeCompetition, selectedId])
 
   const refresh = useCallback(async () => {
     const client = getSupabaseClient()

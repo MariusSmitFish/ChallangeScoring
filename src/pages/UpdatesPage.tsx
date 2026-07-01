@@ -17,7 +17,6 @@ import { getSupabaseClient } from '../lib/supabaseClient'
 type Props = {
   updates: UseCommitteeUpdatesResult
   canMutate: boolean
-  signedInNonAdmin: boolean
 }
 
 function formatWhen(iso: string): string {
@@ -51,7 +50,6 @@ function isFormSuccessMessage(m: string): boolean {
 export default function UpdatesPage({
   updates: { updates, loading, error: loadError, refresh },
   canMutate,
-  signedInNonAdmin,
 }: Props) {
   const { viewCompetition, activeCompetition, competitionId } = useCompetition()
   const comp = viewCompetition ?? activeCompetition
@@ -250,7 +248,7 @@ export default function UpdatesPage({
           : ' Check back here for launch briefings, schedule changes, and scoring notes.'}
       </p>
 
-      <ViewOnlyBanner show={signedInNonAdmin} />
+      <ViewOnlyBanner show={!canMutate} />
 
       {loading ? (
         <p className="empty-hint" role="status">

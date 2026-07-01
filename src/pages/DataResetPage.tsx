@@ -19,7 +19,6 @@ type Props = {
   catches: UseCatchesResult
   overrides: UseTeamDayOverridesResult
   canMutate: boolean
-  signedInNonAdmin: boolean
   competitionId: string | null
   teamIds: string[]
 }
@@ -29,7 +28,6 @@ export default function DataResetPage({
   catches,
   overrides,
   canMutate,
-  signedInNonAdmin,
   competitionId,
   teamIds,
 }: Props) {
@@ -175,7 +173,6 @@ export default function DataResetPage({
 
       <ViewOnlyBanner
         show={!teams.misconfigured && !teams.loading && !canMutate}
-        signedInNonAdmin={signedInNonAdmin}
       />
 
       {msg ? (
