@@ -1,5 +1,11 @@
 import { type FormEvent, useState } from 'react'
 import ViewOnlyBanner from '../components/ViewOnlyBanner'
+import {
+  SCORE_CATEGORIES,
+  SCORE_CATEGORY_LABELS,
+  type ScoreCategory,
+} from '../domain/scoreCategory'
+import type { TeamMember } from '../types'
 import type { UseTeamsResult } from '../hooks/useTeams'
 
 type TeamsPageProps = UseTeamsResult & {
@@ -12,6 +18,24 @@ export default function TeamsPage({
 }: TeamsPageProps) {
   const blocked = t.misconfigured || t.loading || t.syncing || !canMutate
   const [newTeamName, setNewTeamName] = useState('')
+  const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(() => new Set())
+
+  function toggleTeamCollapsed(teamId: string) {
+    setCollapsedTeams((prev) => {
+      const next = new Set(prev)
+      if (next.has(teamId)) next.delete(teamId)
+      else next.add(teamId)
+      return next
+    })
+  }
+
+  function collapseAllTeams() {
+    setCollapsedTeams(new Set(t.teams.map((team) => team.id)))
+  }
+
+  function expandAllTeams() {
+    setCollapsedTeams(new Set())
+  }
 
   function handleAddTeam(e: FormEvent) {
     e.preventDefault()
@@ -65,45 +89,95 @@ export default function TeamsPage({
       ) : t.teams.length === 0 ? (
         <p className="empty-hint">No teams yet. Add the first team above.</p>
       ) : (
-        <ul className="team-list">
-          {t.teams.map((team) => (
-            <li key={team.id} className="team-card">
+        <>
+          {t.teams.length > 1 ? (
+            <div className="team-list-toolbar">
+              <button
+                type="button"
+                className="btn btn-ghost btn-small"
+                onClick={collapseAllTeams}
+              >
+                Collapse all
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-small"
+                onClick={expandAllTeams}
+              >
+                Expand all
+              </button>
+            </div>
+          ) : null}
+          <ul className="team-list">
+          {t.teams.map((team) => {
+            const collapsed = collapsedTeams.has(team.id)
+            return (
+            <li
+              key={team.id}
+              className={`team-card${collapsed ? ' team-card-collapsed' : ''}`}
+            >
               <TeamRow
+                teamId={team.id}
                 teamName={team.name}
+                memberCount={team.members.length}
+                collapsed={collapsed}
                 disabled={blocked}
+                onToggleCollapse={() => toggleTeamCollapsed(team.id)}
                 onRename={(name) => t.renameTeam(team.id, name)}
                 onRemove={() => t.removeTeam(team.id)}
               />
+              {!collapsed ? (
               <MemberSection
                 teamId={team.id}
                 members={team.members}
                 disabled={blocked}
-                onAddMember={(name) => t.addMember(team.id, name)}
+                onAddMember={(name, scoreCategory) =>
+                  t.addMember(team.id, name, scoreCategory)
+                }
                 onRenameMember={(memberId, name) =>
                   t.renameMember(team.id, memberId, name)
+                }
+                onSetMemberScoreCategory={(memberId, scoreCategory) =>
+                  t.setMemberScoreCategory(team.id, memberId, scoreCategory)
                 }
                 onRemoveMember={(memberId) =>
                   t.removeMember(team.id, memberId)
                 }
               />
+              ) : null}
             </li>
-          ))}
+          )})}
         </ul>
+        </>
       )}
     </section>
   )
 }
 
 type TeamRowProps = {
+  teamId: string
   teamName: string
+  memberCount: number
+  collapsed: boolean
   disabled?: boolean
+  onToggleCollapse: () => void
   onRename: (name: string) => void
   onRemove: () => void
 }
 
-function TeamRow({ teamName, disabled = false, onRename, onRemove }: TeamRowProps) {
+function TeamRow({
+  teamId,
+  teamName,
+  memberCount,
+  collapsed,
+  disabled = false,
+  onToggleCollapse,
+  onRename,
+  onRemove,
+}: TeamRowProps) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(teamName)
+  const membersId = `team-members-${teamId}`
 
   function save() {
     onRename(value)
@@ -113,6 +187,16 @@ function TeamRow({ teamName, disabled = false, onRename, onRemove }: TeamRowProp
   if (editing) {
     return (
       <div className="team-row">
+        <button
+          type="button"
+          className="team-collapse-btn"
+          aria-expanded={!collapsed}
+          aria-controls={membersId}
+          disabled={disabled}
+          onClick={onToggleCollapse}
+        >
+          {collapsed ? '▸' : '▾'}
+        </button>
         <input
           className="input input-grow"
           value={value}
@@ -139,7 +223,22 @@ function TeamRow({ teamName, disabled = false, onRename, onRemove }: TeamRowProp
 
   return (
     <div className="team-row">
+      <button
+        type="button"
+        className="team-collapse-btn"
+        aria-expanded={!collapsed}
+        aria-controls={membersId}
+        aria-label={collapsed ? `Expand ${teamName}` : `Collapse ${teamName}`}
+        onClick={onToggleCollapse}
+      >
+        {collapsed ? '▸' : '▾'}
+      </button>
       <h3 className="team-name">{teamName}</h3>
+      {collapsed ? (
+        <span className="team-member-count">
+          {memberCount === 1 ? '1 member' : `${memberCount} members`}
+        </span>
+      ) : null}
       <div className="team-actions">
         <button
           type="button"
@@ -162,10 +261,14 @@ function TeamRow({ teamName, disabled = false, onRename, onRemove }: TeamRowProp
 
 type MemberSectionProps = {
   teamId: string
-  members: { id: string; name: string }[]
+  members: TeamMember[]
   disabled?: boolean
-  onAddMember: (name: string) => void
+  onAddMember: (name: string, scoreCategory: ScoreCategory | null) => void
   onRenameMember: (memberId: string, name: string) => void
+  onSetMemberScoreCategory: (
+    memberId: string,
+    scoreCategory: ScoreCategory | null,
+  ) => void
   onRemoveMember: (memberId: string) => void
 }
 
@@ -175,19 +278,23 @@ function MemberSection({
   disabled = false,
   onAddMember,
   onRenameMember,
+  onSetMemberScoreCategory,
   onRemoveMember,
 }: MemberSectionProps) {
   const [draft, setDraft] = useState('')
+  const [draftCategory, setDraftCategory] = useState<ScoreCategory | ''>('')
   const newMemberInputId = `new-member-${teamId}`
+  const newMemberCategoryId = `new-member-category-${teamId}`
 
   function handleAddMember(e: FormEvent) {
     e.preventDefault()
-    onAddMember(draft)
+    onAddMember(draft, draftCategory || null)
     setDraft('')
+    setDraftCategory('')
   }
 
   return (
-    <div className="members">
+    <div className="members" id={`team-members-${teamId}`}>
       <h4 className="members-heading">Members</h4>
       <form className="inline-form member-form" onSubmit={handleAddMember}>
         <label className="sr-only" htmlFor={newMemberInputId}>
@@ -207,6 +314,16 @@ function MemberSection({
         <button type="submit" className="btn btn-secondary" disabled={disabled}>
           Add member
         </button>
+        <label className="member-category-field" htmlFor={newMemberCategoryId}>
+          <span className="sr-only">Score category</span>
+          <ScoreCategorySelect
+            id={newMemberCategoryId}
+            value={draftCategory}
+            disabled={disabled}
+            onChange={setDraftCategory}
+            allowUnset
+          />
+        </label>
       </form>
 
       {members.length === 0 ? (
@@ -216,9 +333,12 @@ function MemberSection({
           {members.map((m) => (
             <MemberRow
               key={m.id}
-              name={m.name}
+              member={m}
               disabled={disabled}
               onRename={(name) => onRenameMember(m.id, name)}
+              onScoreCategoryChange={(scoreCategory) =>
+                onSetMemberScoreCategory(m.id, scoreCategory)
+              }
               onRemove={() => onRemoveMember(m.id)}
             />
           ))}
@@ -228,14 +348,59 @@ function MemberSection({
   )
 }
 
+type ScoreCategorySelectProps = {
+  id?: string
+  value: ScoreCategory | ''
+  disabled?: boolean
+  allowUnset?: boolean
+  onChange: (value: ScoreCategory | '') => void
+}
+
+function ScoreCategorySelect({
+  id,
+  value,
+  disabled = false,
+  allowUnset = false,
+  onChange,
+}: ScoreCategorySelectProps) {
+  return (
+    <select
+      id={id}
+      className="input member-category-select"
+      value={value}
+      disabled={disabled}
+      onChange={(e) => {
+        const v = e.target.value
+        onChange(v === '' ? '' : (v as ScoreCategory))
+      }}
+      aria-label="Score category"
+    >
+      {allowUnset ? <option value="">Not set</option> : null}
+      {SCORE_CATEGORIES.map((c) => (
+        <option key={c} value={c}>
+          {SCORE_CATEGORY_LABELS[c]}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 type MemberRowProps = {
-  name: string
+  member: TeamMember
   disabled?: boolean
   onRename: (name: string) => void
+  onScoreCategoryChange: (scoreCategory: ScoreCategory | null) => void
   onRemove: () => void
 }
 
-function MemberRow({ name, disabled = false, onRename, onRemove }: MemberRowProps) {
+function MemberRow({
+  member,
+  disabled = false,
+  onRename,
+  onScoreCategoryChange,
+  onRemove,
+}: MemberRowProps) {
+  const { name, scoreCategory } = member
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(name)
 
@@ -274,6 +439,12 @@ function MemberRow({ name, disabled = false, onRename, onRemove }: MemberRowProp
   return (
     <li className="member-row">
       <span className="member-name">{name}</span>
+      <ScoreCategorySelect
+        value={scoreCategory ?? ''}
+        disabled={disabled}
+        allowUnset
+        onChange={(v) => onScoreCategoryChange(v || null)}
+      />
       <div className="member-actions">
         <button
           type="button"

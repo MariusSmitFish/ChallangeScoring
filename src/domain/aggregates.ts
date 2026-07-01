@@ -7,6 +7,7 @@ import {
   distinctSpeciesForDiversity,
   speciesDiversityBonus,
 } from './scoringEngine'
+import type { ScoreCategory } from './scoreCategory'
 import { roundPoints } from '../lib/formatPoints'
 import { speciesDisplayLabel, type SpeciesRegistryEntry } from './species'
 import type { Team } from '../types'
@@ -408,6 +409,7 @@ export function leaderboardAnglerOverall(
   days: CompetitionDay[],
   speciesRegistry?: SpeciesRegistryEntry[] | null,
   scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
+  scoreCategory?: ScoreCategory,
 ): { anglerId: string; name: string; teamId: string; teamName: string; points: number }[] {
   const dayIds = new Set(days.map((d) => d.id))
   const byAngler = new Map<string, number>()
@@ -427,7 +429,12 @@ export function leaderboardAnglerOverall(
   }
 
   const anglerIds = new Set<string>()
-  for (const t of teams) for (const m of t.members) anglerIds.add(m.id)
+  for (const t of teams) {
+    for (const m of t.members) {
+      if (scoreCategory && m.scoreCategory !== scoreCategory) continue
+      anglerIds.add(m.id)
+    }
+  }
 
   for (const anglerId of anglerIds) {
     let pts = 0
@@ -458,6 +465,7 @@ export function leaderboardAnglerOverall(
   }[] = []
   for (const t of teams) {
     for (const m of t.members) {
+      if (scoreCategory && m.scoreCategory !== scoreCategory) continue
       rows.push({
         anglerId: m.id,
         name: m.name,
@@ -507,6 +515,7 @@ export function leaderboardAnglerByDay(
   day: CompetitionDay,
   speciesRegistry?: SpeciesRegistryEntry[] | null,
   scoringConfig: ScoringConfig = DEFAULT_SCORING_CONFIG,
+  scoreCategory?: ScoreCategory,
 ): { anglerId: string; name: string; teamId: string; teamName: string; points: number }[] {
   const anglerTeam = new Map<string, string>()
   for (const t of teams) {
@@ -532,6 +541,7 @@ export function leaderboardAnglerByDay(
   for (const t of teams) {
     if (isDq(overrides, t.id, day.id)) {
       for (const m of t.members) {
+        if (scoreCategory && m.scoreCategory !== scoreCategory) continue
         rows.push({
           anglerId: m.id,
           name: m.name,
@@ -544,6 +554,7 @@ export function leaderboardAnglerByDay(
     }
     const teamList = byTeam.get(t.id) ?? []
     for (const m of t.members) {
+      if (scoreCategory && m.scoreCategory !== scoreCategory) continue
       const ownList = teamList.filter((c) => c.anglerId === m.id)
       const ownFish = roundPoints(
         ownList.reduce((s, c) => s + c.pointsTotal, 0),

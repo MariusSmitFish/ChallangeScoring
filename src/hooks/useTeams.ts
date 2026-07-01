@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ScoreCategory } from '../domain/scoreCategory'
 import { getSupabaseClient } from '../lib/supabaseClient'
 import { loadTeamsFromSupabase } from '../lib/teamQueries'
 import type { Team } from '../types'
@@ -15,8 +16,17 @@ export type UseTeamsResult = {
   addTeam: (name: string) => Promise<void>
   renameTeam: (teamId: string, name: string) => Promise<void>
   removeTeam: (teamId: string) => Promise<void>
-  addMember: (teamId: string, name: string) => Promise<void>
+  addMember: (
+    teamId: string,
+    name: string,
+    scoreCategory?: ScoreCategory | null,
+  ) => Promise<void>
   renameMember: (teamId: string, memberId: string, name: string) => Promise<void>
+  setMemberScoreCategory: (
+    teamId: string,
+    memberId: string,
+    scoreCategory: ScoreCategory | null,
+  ) => Promise<void>
   removeMember: (teamId: string, memberId: string) => Promise<void>
 }
 
@@ -163,7 +173,11 @@ export function useTeams(
   )
 
   const addMember = useCallback(
-    async (teamId: string, name: string) => {
+    async (
+      teamId: string,
+      name: string,
+      scoreCategory: ScoreCategory | null = null,
+    ) => {
       if (!supabase || !canMutate || !competitionId) return
       const trimmed = name.trim()
       if (!trimmed) return
@@ -173,7 +187,13 @@ export function useTeams(
       setTeams((prev) =>
         prev.map((t) =>
           t.id === teamId
-            ? { ...t, members: [...t.members, { id, name: trimmed }] }
+            ? {
+                ...t,
+                members: [
+                  ...t.members,
+                  { id, name: trimmed, scoreCategory },
+                ],
+              }
             : t,
         ),
       )
@@ -182,6 +202,7 @@ export function useTeams(
         id,
         team_id: teamId,
         name: trimmed,
+        score_category: scoreCategory,
       })
       if (insErr) {
         setTeams(snapshot)
@@ -218,6 +239,45 @@ export function useTeams(
       const { error: upErr } = await supabase
         .from('team_members')
         .update({ name: trimmed })
+        .eq('id', memberId)
+        .eq('team_id', teamId)
+      if (upErr) {
+        setTeams(snapshot)
+        setError(upErr.message)
+        setSyncing(false)
+        return
+      }
+      setError(null)
+      setSyncing(false)
+    },
+    [supabase, canMutate, competitionId, teams],
+  )
+
+  const setMemberScoreCategory = useCallback(
+    async (
+      teamId: string,
+      memberId: string,
+      scoreCategory: ScoreCategory | null,
+    ) => {
+      if (!supabase || !canMutate || !competitionId) return
+
+      const snapshot = teams
+      setTeams((prev) =>
+        prev.map((t) =>
+          t.id !== teamId
+            ? t
+            : {
+                ...t,
+                members: t.members.map((m) =>
+                  m.id === memberId ? { ...m, scoreCategory } : m,
+                ),
+              },
+        ),
+      )
+      setSyncing(true)
+      const { error: upErr } = await supabase
+        .from('team_members')
+        .update({ score_category: scoreCategory })
         .eq('id', memberId)
         .eq('team_id', teamId)
       if (upErr) {
@@ -277,6 +337,7 @@ export function useTeams(
     removeTeam,
     addMember,
     renameMember,
+    setMemberScoreCategory,
     removeMember,
   }
 }

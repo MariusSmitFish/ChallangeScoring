@@ -22,6 +22,11 @@ import type { UseCatchesResult } from '../hooks/useCatches'
 import type { UseCompetitionDaysResult } from '../hooks/useCompetitionDays'
 import type { UseTeamDayOverridesResult } from '../hooks/useTeamDayOverrides'
 import type { UseTeamsResult } from '../hooks/useTeams'
+import {
+  SCORE_CATEGORIES,
+  SCORE_CATEGORY_LABELS,
+  type ScoreCategory,
+} from '../domain/scoreCategory'
 import { formatPointsFixed2 } from '../lib/formatPoints'
 
 function formatKg(kg: number): string {
@@ -317,9 +322,32 @@ function AnglerOverallExplainView({
 type Tab =
   | 'team-overall'
   | 'angler-overall'
+  | 'angler-men'
+  | 'angler-ladies'
+  | 'angler-u19'
+  | 'angler-u16'
   | 'team-day'
   | 'angler-day'
   | 'big-fish'
+
+function tabScoreCategory(tab: Tab): ScoreCategory | undefined {
+  switch (tab) {
+    case 'angler-men':
+      return 'men'
+    case 'angler-ladies':
+      return 'ladies'
+    case 'angler-u19':
+      return 'u19'
+    case 'angler-u16':
+      return 'u16'
+    default:
+      return undefined
+  }
+}
+
+function isAnglerOverallTab(tab: Tab): boolean {
+  return tab === 'angler-overall' || tabScoreCategory(tab) !== undefined
+}
 
 type Props = {
   teams: UseTeamsResult
@@ -341,6 +369,7 @@ export default function LeaderboardsPage({
   const multiplierMode = scoringConfig.diversityMode === 'multiplier'
   const [tab, setTab] = useState<Tab>('team-overall')
   const [dayId, setDayId] = useState('')
+  const [anglerDayCategory, setAnglerDayCategory] = useState<ScoreCategory | ''>('')
   const [dqTeam, setDqTeam] = useState('')
   const [dqDay, setDqDay] = useState('')
   const [dqOn, setDqOn] = useState(false)
@@ -357,6 +386,9 @@ export default function LeaderboardsPage({
   }, [dayId, days.days])
 
   const selectedDay = days.days.find((d) => d.id === dayId)
+  const anglerOverallCategory = isAnglerOverallTab(tab)
+    ? tabScoreCategory(tab)
+    : undefined
 
   const teamOverall = useMemo(
     () =>
@@ -387,6 +419,7 @@ export default function LeaderboardsPage({
         days.days,
         species.entries,
         scoringConfig,
+        anglerOverallCategory,
       ),
     [
       teams.teams,
@@ -395,6 +428,7 @@ export default function LeaderboardsPage({
       days.days,
       species.entries,
       scoringConfig,
+      anglerOverallCategory,
     ],
   )
 
@@ -426,6 +460,7 @@ export default function LeaderboardsPage({
       selectedDay,
       species.entries,
       scoringConfig,
+      anglerDayCategory || undefined,
     )
   }, [
     teams.teams,
@@ -434,6 +469,7 @@ export default function LeaderboardsPage({
     selectedDay,
     species.entries,
     scoringConfig,
+    anglerDayCategory,
   ])
 
   const bigFishOverall = useMemo(
@@ -516,6 +552,20 @@ export default function LeaderboardsPage({
             points. <strong>Heaviest per species</strong> is one row per species
             key (the single heaviest fish recorded for that species).
           </>
+        ) : isAnglerOverallTab(tab) ? (
+          <>
+            Angler totals use each angler’s own catches for fish points and species
+            diversity bonus.
+            {anglerOverallCategory ? (
+              <>
+                {' '}
+                Only anglers marked <strong>{SCORE_CATEGORY_LABELS[anglerOverallCategory]}</strong>{' '}
+                on the Teams page appear here.
+              </>
+            ) : null}{' '}
+            Disqualified days force zero for that team day. Use <strong>▸</strong> on a
+            row to see how points were built.
+          </>
         ) : (
           <>
             Team totals include per-day species diversity bonus from the whole
@@ -538,6 +588,10 @@ export default function LeaderboardsPage({
           [
             ['team-overall', 'Teams overall'],
             ['angler-overall', 'Anglers overall'],
+            ['angler-men', 'Men'],
+            ['angler-ladies', 'Ladies'],
+            ['angler-u19', 'U/19'],
+            ['angler-u16', 'U/16'],
             ['team-day', 'Teams by day'],
             ['angler-day', 'Anglers by day'],
             ['big-fish', 'Biggest fish'],
@@ -573,6 +627,29 @@ export default function LeaderboardsPage({
           </select>
         </label>
       )}
+
+      {tab === 'angler-day' ? (
+        <label className="field boards-day-pick">
+          <span>Division</span>
+          <select
+            className="input"
+            value={anglerDayCategory}
+            onChange={(e) =>
+              setAnglerDayCategory(
+                e.target.value === '' ? '' : (e.target.value as ScoreCategory),
+              )
+            }
+            disabled={siteDown}
+          >
+            <option value="">All anglers</option>
+            {SCORE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {SCORE_CATEGORY_LABELS[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       {tab === 'team-overall' ? (
         <div className="table-wrap">
@@ -643,7 +720,7 @@ export default function LeaderboardsPage({
         </div>
       ) : null}
 
-      {tab === 'angler-overall' ? (
+      {isAnglerOverallTab(tab) ? (
         <div className="table-wrap">
           <table className="data-table boards-expandable-table">
             <thead>
@@ -658,6 +735,15 @@ export default function LeaderboardsPage({
               </tr>
             </thead>
             <tbody>
+              {anglerOverall.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="empty-hint">
+                    {anglerOverallCategory
+                      ? `No anglers marked ${SCORE_CATEGORY_LABELS[anglerOverallCategory]} yet. Set divisions on the Teams page.`
+                      : 'No anglers yet.'}
+                  </td>
+                </tr>
+              ) : null}
               {anglerOverall.map((r, i) => {
                 const k = rowExpandKey(r.anglerId)
                 const open = expandedKey === k
