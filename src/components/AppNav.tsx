@@ -15,7 +15,7 @@ type NavProps = {
   onChange: (v: AppView) => void
   /** When false, committee-only tabs (teams, score entry) are hidden. */
   showCommitteeTabs: boolean
-  /** When false, super-admin-only tabs (competitions, data reset) are hidden. */
+  /** When false, the competitions tab is hidden (super-admin only). */
   showSuperAdminTabs: boolean
 }
 
@@ -38,13 +38,7 @@ const LINKS: {
   },
   { id: 'teams', label: 'Teams', committeeOnly: true },
   { id: 'species', label: 'Species', committeeOnly: true },
-  {
-    id: 'data-reset',
-    label: 'Data reset',
-    shortLabel: 'Reset',
-    committeeOnly: true,
-    superAdminOnly: true,
-  },
+  { id: 'data-reset', label: 'Data reset', shortLabel: 'Reset', committeeOnly: true },
   { id: 'score', label: 'Score entry', shortLabel: 'Score', committeeOnly: true },
   { id: 'boards', label: 'Leaderboards', shortLabel: 'Boards' },
 ]

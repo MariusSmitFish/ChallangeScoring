@@ -93,7 +93,7 @@ function AppInner({
       setView('rules')
       return
     }
-    if (!showSuperAdminTabs && (view === 'data-reset' || view === 'competitions')) {
+    if (!showSuperAdminTabs && view === 'competitions') {
       setView('score')
     }
   }, [authLoading, canMutate, showSuperAdminTabs, view])
@@ -288,7 +288,7 @@ function AppInner({
                 catches={catches}
               />
             ) : null}
-            {view === 'data-reset' && showSuperAdminTabs ? (
+            {view === 'data-reset' ? (
               <DataResetPage
                 teams={teams}
                 catches={catches}
