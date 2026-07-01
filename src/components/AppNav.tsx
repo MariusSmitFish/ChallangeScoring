@@ -15,6 +15,8 @@ type NavProps = {
   onChange: (v: AppView) => void
   /** When false, committee-only tabs (teams, score entry) are hidden. */
   showCommitteeTabs: boolean
+  /** When false, super-admin-only tabs (competitions, data reset) are hidden. */
+  showSuperAdminTabs: boolean
 }
 
 const LINKS: {
@@ -22,14 +24,27 @@ const LINKS: {
   label: string
   shortLabel?: string
   committeeOnly?: true
+  superAdminOnly?: true
 }[] = [
   { id: 'rules', label: 'Rules' },
   { id: 'schedule', label: 'Schedule' },
   { id: 'updates', label: 'Updates' },
-  { id: 'competitions', label: 'Competitions', shortLabel: 'Comps', committeeOnly: true },
+  {
+    id: 'competitions',
+    label: 'Competitions',
+    shortLabel: 'Comps',
+    committeeOnly: true,
+    superAdminOnly: true,
+  },
   { id: 'teams', label: 'Teams', committeeOnly: true },
   { id: 'species', label: 'Species', committeeOnly: true },
-  { id: 'data-reset', label: 'Data reset', shortLabel: 'Reset', committeeOnly: true },
+  {
+    id: 'data-reset',
+    label: 'Data reset',
+    shortLabel: 'Reset',
+    committeeOnly: true,
+    superAdminOnly: true,
+  },
   { id: 'score', label: 'Score entry', shortLabel: 'Score', committeeOnly: true },
   { id: 'boards', label: 'Leaderboards', shortLabel: 'Boards' },
 ]
@@ -38,11 +53,14 @@ export default function AppNav({
   view,
   onChange,
   showCommitteeTabs,
+  showSuperAdminTabs,
 }: NavProps) {
   const mainView = view === 'login' ? null : view
-  const visibleLinks = showCommitteeTabs
-    ? LINKS
-    : LINKS.filter((l) => !l.committeeOnly)
+  const visibleLinks = LINKS.filter((l) => {
+    if (l.superAdminOnly && !showSuperAdminTabs) return false
+    if (l.committeeOnly && !showCommitteeTabs) return false
+    return true
+  })
 
   return (
     <nav className="app-nav" aria-label="Main">

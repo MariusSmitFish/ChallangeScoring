@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
+import { isSuperAdminEmail } from './auth/superAdmin'
 import AppNav, { type AppView } from './components/AppNav'
 import CompetitionSwitcher from './components/CompetitionSwitcher'
 import MutationStatusBar from './components/MutationStatusBar'
@@ -76,6 +77,8 @@ function AppInner({
       : null
 
   const [view, setView] = useState<AppView>('rules')
+  const isSuperAdmin = isSuperAdminEmail(user?.email)
+  const showSuperAdminTabs = canMutate && isSuperAdmin
 
   useEffect(() => {
     if (authLoading) return
@@ -88,8 +91,12 @@ function AppInner({
         view === 'competitions')
     ) {
       setView('rules')
+      return
     }
-  }, [authLoading, canMutate, view])
+    if (!showSuperAdminTabs && (view === 'data-reset' || view === 'competitions')) {
+      setView('score')
+    }
+  }, [authLoading, canMutate, showSuperAdminTabs, view])
 
   const apiError =
     competition.error ??
@@ -217,6 +224,7 @@ function AppInner({
               view={view}
               onChange={setView}
               showCommitteeTabs={canMutate}
+              showSuperAdminTabs={showSuperAdminTabs}
             />
           </div>
         </div>
@@ -263,7 +271,7 @@ function AppInner({
                 signedInNonAdmin={signedInNonAdmin}
               />
             ) : null}
-            {view === 'competitions' ? (
+            {view === 'competitions' && showSuperAdminTabs ? (
               <CompetitionsPage canMutate={canMutate} />
             ) : null}
             {view === 'teams' ? (
@@ -280,7 +288,7 @@ function AppInner({
                 catches={catches}
               />
             ) : null}
-            {view === 'data-reset' ? (
+            {view === 'data-reset' && showSuperAdminTabs ? (
               <DataResetPage
                 teams={teams}
                 catches={catches}
